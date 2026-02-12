@@ -1,0 +1,2 @@
+# shadowqa
+Localization QA, automated.
