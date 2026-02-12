@@ -1,0 +1,40 @@
+{
+  "name": "shadowqa",
+  "version": "1.0.0",
+  "description": "Frontend regression detection tool — compares two web pages and surfaces meaningful visual, structural, and accessibility regressions",
+  "main": "dist/server/index.js",
+  "bin": {
+    "shadowqa": "dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/server/index.js",
+    "dev": "tsx watch src/server/index.ts",
+    "cli": "tsx src/cli.ts"
+  },
+  "keywords": [
+    "regression",
+    "testing",
+    "accessibility",
+    "visual-diff",
+    "qa"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "axe-core": "^4.11.1",
+    "diff": "^8.0.3",
+    "express": "^5.2.1",
+    "pixelmatch": "^7.1.0",
+    "playwright": "^1.58.2",
+    "pngjs": "^7.0.0"
+  },
+  "devDependencies": {
+    "@types/diff": "^7.0.2",
+    "@types/express": "^5.0.6",
+    "@types/node": "^25.2.3",
+    "@types/pngjs": "^6.0.5",
+    "nodemon": "^3.1.11",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3"
+  }
+}

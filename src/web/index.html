@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Shadow QA — Localization QA</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="container">
+    <button class="theme-toggle" id="themeToggle" title="Toggle dark mode" aria-label="Toggle dark mode">
+      <svg class="theme-icon-light" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+      <svg class="theme-icon-dark" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+    </button>
+    <header class="hero">
+      <div class="hero-icon">
+        <svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="24" cy="24" r="22" stroke="#2563eb" stroke-width="2.5" fill="none"/>
+          <ellipse cx="24" cy="24" rx="10" ry="22" stroke="#2563eb" stroke-width="2" fill="none"/>
+          <line x1="2" y1="16" x2="46" y2="16" stroke="#2563eb" stroke-width="1.5"/>
+          <line x1="2" y1="32" x2="46" y2="32" stroke="#2563eb" stroke-width="1.5"/>
+          <line x1="24" y1="2" x2="24" y2="46" stroke="#2563eb" stroke-width="1.5"/>
+        </svg>
+      </div>
+      <h1>Shadow QA</h1>
+      <p class="tagline">Localization QA, automated.</p>
+      <div class="feature-pills">
+        <span class="pill"><span class="pill-dot pill-dot-untranslated"></span>Untranslated</span>
+        <span class="pill"><span class="pill-dot pill-dot-layout"></span>Layout</span>
+        <span class="pill"><span class="pill-dot pill-dot-missing"></span>Missing</span>
+        <span class="pill"><span class="pill-dot pill-dot-accessibility"></span>Accessibility</span>
+        <span class="pill"><span class="pill-dot pill-dot-functionality"></span>Functionality</span>
+      </div>
+    </header>
+
+    <main>
+      <form id="compareForm" class="compare-form">
+        <div class="input-group">
+          <label for="sourceUrl">Source URL (original language)</label>
+          <input
+            type="url"
+            id="sourceUrl"
+            name="sourceUrl"
+            placeholder="https://example.com (source version)"
+            required
+          >
+        </div>
+        <div class="input-group">
+          <label for="targetUrl">Target URL (localized version)</label>
+          <input
+            type="url"
+            id="targetUrl"
+            name="targetUrl"
+            placeholder="https://example.com/de (localized version)"
+            required
+          >
+        </div>
+        <div class="input-group">
+          <label for="viewport">Viewport</label>
+          <select id="viewport" name="viewport">
+            <option value="1280x720" selected>Desktop (1280 x 720)</option>
+            <option value="768x1024">Tablet (768 x 1024)</option>
+            <option value="375x667">Mobile (375 x 667)</option>
+          </select>
+        </div>
+        <button type="submit" id="submitBtn">Compare</button>
+      </form>
+
+      <details class="usage-section">
+        <summary>CLI &amp; API Usage</summary>
+        <div class="usage-content">
+          <h3>Command Line</h3>
+          <pre><code>npx shadowqa &lt;sourceUrl&gt; &lt;targetUrl&gt; [options]</code></pre>
+          <p class="usage-label">Options</p>
+          <table class="usage-table">
+            <tr><td><code>--viewport &lt;preset|WxH&gt;</code></td><td>desktop (default), tablet, mobile, or custom WxH</td></tr>
+            <tr><td><code>--output &lt;path&gt;</code></td><td>Output directory (default: ./reports)</td></tr>
+          </table>
+          <p class="usage-label">Examples</p>
+          <pre><code># Desktop comparison (default)
+npx shadowqa https://example.com https://example.com/de
+
+# Mobile viewport
+npx shadowqa https://example.com https://example.com/ja --viewport mobile
+
+# Custom viewport
+npx shadowqa https://example.com https://example.com/fr --viewport 1440x900
+
+# Custom output directory
+npx shadowqa https://example.com https://example.com/es --output ./my-reports</code></pre>
+          <h3>Development</h3>
+          <pre><code># Run CLI directly with tsx (no build needed)
+npm run cli -- https://example.com https://example.com/de
+
+# Start web UI
+npm run dev</code></pre>
+        </div>
+      </details>
+
+      <div id="progress" class="progress hidden">
+        <div class="steps-indicator" id="stepsIndicator">
+          <div class="step" data-step="1">
+            <div class="step-circle">1</div>
+            <span class="step-label">Capture Source</span>
+          </div>
+          <div class="step-line"></div>
+          <div class="step" data-step="2">
+            <div class="step-circle">2</div>
+            <span class="step-label">Capture Target</span>
+          </div>
+          <div class="step-line"></div>
+          <div class="step" data-step="3">
+            <div class="step-circle">3</div>
+            <span class="step-label">Analyze</span>
+          </div>
+          <div class="step-line"></div>
+          <div class="step" data-step="4">
+            <div class="step-circle">4</div>
+            <span class="step-label">Generate Report</span>
+          </div>
+        </div>
+        <div class="progress-bar">
+          <div class="progress-fill" id="progressFill"></div>
+        </div>
+        <p class="progress-status" id="progressStatus">Starting...</p>
+      </div>
+
+      <div id="error" class="error-card hidden">
+        <div class="error-icon">!</div>
+        <div class="error-content">
+          <h3 class="error-title" id="errorTitle">Something went wrong</h3>
+          <p class="error-message" id="errorMessage"></p>
+          <p class="error-suggestion" id="errorSuggestion"></p>
+        </div>
+        <button class="error-retry" id="errorRetry">Try again</button>
+      </div>
+
+      <div id="successCard" class="success-card hidden">
+        <div class="success-icon">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>
+        </div>
+        <h3>Report generated</h3>
+        <p class="success-meta" id="successMeta"></p>
+        <div class="success-actions">
+          <a id="reportLink" href="#" class="btn-primary">View Report</a>
+          <a id="reportNewTab" href="#" target="_blank" class="btn-secondary">Open in New Tab</a>
+        </div>
+      </div>
+
+      <section id="historySection" class="history-section hidden">
+        <h2>Recent Comparisons</h2>
+        <div id="historyList" class="history-list"></div>
+      </section>
+    </main>
+
+    <footer>
+      <div class="footer-sep"></div>
+      <p>Shadow QA — Localization QA Tool</p>
+      <p class="footer-tech">Built with Playwright, axe-core, and pixelmatch</p>
+    </footer>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
