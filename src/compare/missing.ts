@@ -37,12 +37,13 @@ export function compareMissing(
     if (!isInteractive && !isLandmark && !isHeading && !node.textContent) continue;
 
     findings.push({
-      category: "missing",
+      category: "functional",
       title: `Missing element: <${node.tag}>${node.textContent ? ` "${truncate(node.textContent, 40)}"` : ""}`,
       description: `The <${node.tag}> element at "${selector}" is present on the source page but missing from the localized version`,
       element: { selector, tag: node.tag },
       source: `<${node.tag}> present${node.textContent ? ` ("${truncate(node.textContent, 80)}")` : ""}`,
       target: "Element not found",
+      boundingBox: node.boundingBox ?? undefined,
       metadata: {
         type: "missing",
         isInteractive,

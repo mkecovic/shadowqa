@@ -22,12 +22,13 @@ export function compareLayout(
     // Detect truncation: not clipped on source, clipped on target
     if (!sourceNode.isClipped && targetNode.isClipped) {
       findings.push({
-        category: "layout",
+        category: "formatting",
         title: `Text truncation in <${targetNode.tag}>`,
         description: `The element at "${selector}" is clipped/truncated on the target page but not on the source`,
         element: { selector, tag: targetNode.tag },
         source: `${sourceNode.boundingBox.width}x${sourceNode.boundingBox.height}px, not clipped`,
         target: `${targetNode.boundingBox.width}x${targetNode.boundingBox.height}px, clipped`,
+        boundingBox: targetNode.boundingBox,
         metadata: {
           type: "truncation",
           sourceBounds: sourceNode.boundingBox,
@@ -42,12 +43,13 @@ export function compareLayout(
       sourceNode.boundingBox.height;
     if (heightGrowth > 0.5 && sourceNode.boundingBox.height > 10) {
       findings.push({
-        category: "layout",
+        category: "formatting",
         title: `Significant resize in <${targetNode.tag}>`,
         description: `The element at "${selector}" grew ${Math.round(heightGrowth * 100)}% taller on the target page, likely due to text expansion`,
         element: { selector, tag: targetNode.tag },
         source: `${sourceNode.boundingBox.width}x${sourceNode.boundingBox.height}px`,
         target: `${targetNode.boundingBox.width}x${targetNode.boundingBox.height}px`,
+        boundingBox: targetNode.boundingBox,
         metadata: {
           type: "resize",
           heightGrowth,
@@ -107,12 +109,13 @@ function detectNewOverlaps(
       reported.add(key);
 
       findings.push({
-        category: "layout",
+        category: "formatting",
         title: `Elements overlap: <${a.tag}> and <${b.tag}>`,
         description: `"${a.selector}" and "${b.selector}" overlap on the target page but not on the source`,
         element: { selector: a.selector, tag: a.tag },
         source: "No overlap",
         target: `${targetOverlap}px² overlap area`,
+        boundingBox: a.boundingBox!,
         metadata: {
           type: "overlap",
           overlapArea: targetOverlap,

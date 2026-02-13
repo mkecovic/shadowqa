@@ -5,10 +5,12 @@ import { compareLayout } from "./layout.js";
 import { compareMissing } from "./missing.js";
 import { compareFunctionality } from "./functionality.js";
 import { compareAccessibility } from "./accessibility.js";
+import { annotateScreenshot } from "./annotate.js";
 
 export interface CompareResult {
   findings: RawFinding[];
   diffImage: Buffer;
+  annotatedScreenshot: Buffer;
 }
 
 export async function comparePages(
@@ -34,14 +36,19 @@ export async function comparePages(
     Promise.resolve(compareAccessibility(source, target)),
   ]);
 
+  const allFindings = [
+    ...untranslatedFindings,
+    ...layoutFindings,
+    ...missingFindings,
+    ...functionalityFindings,
+    ...a11yFindings,
+  ];
+
+  const annotated = await annotateScreenshot(target.screenshot, allFindings);
+
   return {
-    findings: [
-      ...untranslatedFindings,
-      ...layoutFindings,
-      ...missingFindings,
-      ...functionalityFindings,
-      ...a11yFindings,
-    ],
+    findings: allFindings,
     diffImage: visualResult.diffImage,
+    annotatedScreenshot: annotated,
   };
 }

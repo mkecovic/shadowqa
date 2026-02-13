@@ -84,12 +84,13 @@ export function compareUntranslated(
 
       if (confidence > 0.4) {
         findings.push({
-          category: "untranslated",
+          category: "bleeding",
           title: `Untranslated text: "${truncate(sourceText, 50)}"`,
           description: `The text "${truncate(sourceText, 80)}" appears identically on both the source and target pages at "${selector}"`,
           element: { selector, tag: sourceNode.tag },
           source: truncate(sourceText, 120),
           target: truncate(targetText, 120),
+          boundingBox: targetNode.boundingBox ?? undefined,
           metadata: {
             type: "exact-match",
             textLength: sourceText.length,
@@ -104,12 +105,13 @@ export function compareUntranslated(
       // Target text differs but is still in the source's script when we expect a different one
       const confidence = 0.7;
       findings.push({
-        category: "untranslated",
+        category: "bleeding",
         title: `Possibly untranslated: "${truncate(targetText, 50)}"`,
         description: `The text at "${selector}" uses ${sourceScripts.join("/")} script but the target locale (${targetLang}) expects ${targetScripts.join("/")}`,
         element: { selector, tag: targetNode.tag },
         source: truncate(sourceText, 120),
         target: truncate(targetText, 120),
+        boundingBox: targetNode.boundingBox ?? undefined,
         metadata: {
           type: "script-mismatch",
           textLength: targetText.length,

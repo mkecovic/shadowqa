@@ -1,7 +1,7 @@
 import type { ComparisonReport, Finding } from "../types/index.js";
 
 export function buildHtmlReport(report: ComparisonReport): string {
-  const severityOrder = ["critical", "major", "minor", "warning", "cosmetic"] as const;
+  const severityOrder = ["critical", "major", "normal", "minor", "trivial"] as const;
   const groupedFindings = new Map<string, Finding[]>();
   for (const sev of severityOrder) {
     groupedFindings.set(
@@ -10,7 +10,7 @@ export function buildHtmlReport(report: ComparisonReport): string {
     );
   }
 
-  const categories = ["untranslated", "layout", "missing", "accessibility", "functionality"] as const;
+  const categories = ["bleeding", "formatting", "functional", "source-issues"] as const;
   const categoryCounts = new Map<string, number>();
   for (const cat of categories) {
     categoryCounts.set(cat, report.findings.filter((f) => f.category === cat).length);
@@ -32,13 +32,17 @@ export function buildHtmlReport(report: ComparisonReport): string {
   <style>${getReportCSS()}</style>
 </head>
 <body>
+  <button class="theme-toggle" id="themeToggle" title="Toggle dark mode" aria-label="Toggle dark mode">
+    <svg class="theme-icon-light" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+    <svg class="theme-icon-dark" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+  </button>
+
   <header class="report-header">
+    <div class="header-top">
+      <a href="/" class="back-link">&larr; Back</a>
+    </div>
     <div class="header-row">
       <h1>Shadow QA — Localization Report${localeDisplay}</h1>
-      <button class="theme-toggle" id="themeToggle" title="Toggle dark mode" aria-label="Toggle dark mode">
-        <svg class="theme-icon-light" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
-        <svg class="theme-icon-dark" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
-      </button>
     </div>
     <p class="report-meta">
       Generated ${escapeHtml(report.timestamp)}<br>
@@ -68,7 +72,7 @@ export function buildHtmlReport(report: ComparisonReport): string {
             const count = categoryCounts.get(cat) || 0;
             return `<button class="filter-btn active" data-filter="${cat}" ${count === 0 ? "disabled" : ""}>
             <span class="filter-dot filter-dot-${cat}"></span>
-            ${capitalize(cat)} <span class="filter-count">${count}</span>
+            ${categoryLabel(cat)} <span class="filter-count">${count}</span>
           </button>`;
           }).join("\n          ")}
         </div>
@@ -101,13 +105,17 @@ export function buildHtmlReport(report: ComparisonReport): string {
 
   <section class="screenshots">
     <div class="screenshot-tabs" role="tablist" aria-label="Screenshot views">
-      <button class="screenshot-tab active" data-tab="source" role="tab" aria-selected="true" aria-controls="pane-source" id="tab-source" tabindex="0">Source</button>
+      <button class="screenshot-tab active" data-tab="annotated" role="tab" aria-selected="true" aria-controls="pane-annotated" id="tab-annotated" tabindex="0">Annotated</button>
+      <button class="screenshot-tab" data-tab="source" role="tab" aria-selected="false" aria-controls="pane-source" id="tab-source" tabindex="-1">Source</button>
       <button class="screenshot-tab" data-tab="target" role="tab" aria-selected="false" aria-controls="pane-target" id="tab-target" tabindex="-1">Target</button>
       <button class="screenshot-tab" data-tab="diff" role="tab" aria-selected="false" aria-controls="pane-diff" id="tab-diff" tabindex="-1">Diff</button>
       <button class="screenshot-tab" data-tab="sidebyside" role="tab" aria-selected="false" aria-controls="pane-sidebyside" id="tab-sidebyside" tabindex="-1">Side by Side</button>
-      <button class="download-btn" id="screenshotDownload" data-filename="source.png" data-src="data:image/png;base64,${report.sourceScreenshot}">Download</button>
+      <button class="download-btn" id="screenshotDownload" data-filename="annotated.png" data-src="data:image/png;base64,${report.annotatedScreenshot}">Download</button>
     </div>
-    <div class="screenshot-pane active" data-pane="source" role="tabpanel" id="pane-source" aria-labelledby="tab-source">
+    <div class="screenshot-pane active" data-pane="annotated" role="tabpanel" id="pane-annotated" aria-labelledby="tab-annotated">
+      <img src="data:image/png;base64,${report.annotatedScreenshot}" alt="Annotated target screenshot with finding locations">
+    </div>
+    <div class="screenshot-pane" data-pane="source" role="tabpanel" id="pane-source" aria-labelledby="tab-source">
       <img src="data:image/png;base64,${report.sourceScreenshot}" alt="Source page screenshot">
     </div>
     <div class="screenshot-pane" data-pane="target" role="tabpanel" id="pane-target" aria-labelledby="tab-target">
@@ -171,7 +179,7 @@ function findingCard(f: Finding): string {
     <div class="finding-summary" onclick="this.parentElement.classList.toggle('expanded')">
       <div class="finding-header">
         <span class="badge badge-${f.severity}">${f.severity.toUpperCase()}</span>
-        <span class="badge badge-${f.category}">${f.category}</span>
+        <span class="badge badge-${f.category}">${categoryLabel(f.category)}</span>
         <span class="confidence" title="Confidence: how likely this is a real issue">${(f.confidence * 100).toFixed(0)}% confidence</span>
         <span class="expand-icon"></span>
       </div>
@@ -212,6 +220,17 @@ function findingCard(f: Finding): string {
 
 function capitalize(s: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+const CATEGORY_LABELS: Record<string, string> = {
+  bleeding: "Bleeding",
+  formatting: "Formatting",
+  functional: "Functional",
+  "source-issues": "Source Issues",
+};
+
+function categoryLabel(cat: string): string {
+  return CATEGORY_LABELS[cat] || capitalize(cat);
 }
 
 function escapeHtml(str: string): string {
@@ -362,6 +381,7 @@ function getReportJS(): string {
       var dlBtn = document.getElementById('screenshotDownload');
 
       var screenshotData = {
+        annotated: { filename: 'annotated.png', src: document.querySelector('[data-pane="annotated"] img').src },
         source: { filename: 'source.png', src: document.querySelector('[data-pane="source"] img').src },
         target: { filename: 'target.png', src: document.querySelector('[data-pane="target"] img').src },
         diff: { filename: 'diff.png', src: document.querySelector('[data-pane="diff"] img').src }
@@ -540,30 +560,45 @@ function getReportJS(): string {
 
 function getReportCSS(): string {
   return `
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
     :root {
       --critical: #dc2626;
       --major: #ea580c;
-      --minor: #ca8a04;
-      --warning: #a16207;
-      --cosmetic: #6b7280;
+      --normal: #ca8a04;
+      --minor: #a16207;
+      --trivial: #6b7280;
       --total: #2563eb;
-      --cat-untranslated: #e11d48;
-      --cat-layout: #7c3aed;
-      --cat-missing: #ea580c;
-      --cat-accessibility: #059669;
-      --cat-functionality: #0891b2;
+      --cat-bleeding: #e11d48;
+      --cat-formatting: #7c3aed;
+      --cat-functional: #0891b2;
+      --cat-source-issues: #d97706;
       --bg: #f8fafc;
       --card-bg: #ffffff;
       --text: #1e293b;
       --text-light: #64748b;
       --border: #e2e8f0;
       --radius: 8px;
+      --radius-lg: 12px;
+      --radius-xl: 16px;
       --code-bg: #f1f5f9;
       --recommendation-bg: #f0fdf4;
       --recommendation-border: #bbf7d0;
       --hover-bg: #f8fafc;
       --diff-source-border: #3b82f6;
       --diff-target-border: #f59e0b;
+
+      --glass-bg: rgba(255, 255, 255, 0.6);
+      --glass-border: rgba(255, 255, 255, 0.3);
+      --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
+      --glass-blur: blur(16px);
+      --glass-hover-shadow: 0 12px 40px rgba(0, 0, 0, 0.12);
+      --input-bg: rgba(255, 255, 255, 0.5);
+      --input-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.06);
+      --gradient-1: #667eea;
+      --gradient-2: #764ba2;
+      --gradient-3: #f093fb;
+      --gradient-4: #2563eb;
     }
 
     [data-theme="dark"] {
@@ -578,6 +613,13 @@ function getReportCSS(): string {
       --hover-bg: #1e293b;
       --diff-source-border: #60a5fa;
       --diff-target-border: #fbbf24;
+
+      --glass-bg: rgba(30, 41, 59, 0.6);
+      --glass-border: rgba(148, 163, 184, 0.1);
+      --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+      --glass-hover-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
+      --input-bg: rgba(30, 41, 59, 0.5);
+      --input-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.2);
     }
 
     @media (prefers-color-scheme: dark) {
@@ -593,25 +635,109 @@ function getReportCSS(): string {
         --hover-bg: #1e293b;
         --diff-source-border: #60a5fa;
         --diff-target-border: #fbbf24;
+
+        --glass-bg: rgba(30, 41, 59, 0.6);
+        --glass-border: rgba(148, 163, 184, 0.1);
+        --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        --glass-hover-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
+        --input-bg: rgba(30, 41, 59, 0.5);
+        --input-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.2);
       }
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
 
     body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
       background: var(--bg);
       color: var(--text);
       line-height: 1.6;
       padding: 2rem;
       max-width: 1200px;
       margin: 0 auto;
+      position: relative;
+    }
+
+    /* Animated gradient background */
+    body::before {
+      content: '';
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(135deg, var(--gradient-1), var(--gradient-2), var(--gradient-3), var(--gradient-4));
+      background-size: 400% 400%;
+      animation: gradientShift 15s ease infinite;
+      opacity: 0.08;
+      z-index: -2;
+      pointer-events: none;
+    }
+
+    /* Noise texture overlay */
+    body::after {
+      content: '';
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      opacity: 0.03;
+      z-index: -1;
+      pointer-events: none;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+      background-repeat: repeat;
+      background-size: 256px 256px;
+    }
+
+    @keyframes gradientShift {
+      0% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+      100% { background-position: 0% 50%; }
+    }
+
+    @keyframes fadeInUp {
+      from {
+        opacity: 0;
+        transform: translateY(16px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
     }
 
     .report-header {
       margin-bottom: 2rem;
-      padding-bottom: 1rem;
-      border-bottom: 2px solid var(--border);
+      padding: 1.5rem;
+      background: var(--glass-bg);
+      backdrop-filter: var(--glass-blur);
+      -webkit-backdrop-filter: var(--glass-blur);
+      border: 1px solid var(--glass-border);
+      border-radius: var(--radius-xl);
+      box-shadow: var(--glass-shadow);
+      animation: fadeInUp 0.6s ease both;
+    }
+
+    .header-top {
+      margin-bottom: 0.75rem;
+    }
+
+    .back-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.3rem;
+      font-size: 0.85rem;
+      font-weight: 500;
+      color: var(--text-light);
+      text-decoration: none;
+      transition: color 0.15s;
+    }
+
+    .back-link:hover {
+      color: var(--text);
     }
 
     .header-row {
@@ -623,25 +749,36 @@ function getReportCSS(): string {
 
     .report-header h1 {
       font-size: 1.75rem;
-      font-weight: 700;
+      font-weight: 800;
       margin-bottom: 0.5rem;
+      letter-spacing: -0.03em;
     }
 
     .theme-toggle {
-      background: var(--card-bg);
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      padding: 0.4rem;
+      position: fixed;
+      top: 1.25rem;
+      right: 1.5rem;
+      background: var(--glass-bg);
+      backdrop-filter: var(--glass-blur);
+      -webkit-backdrop-filter: var(--glass-blur);
+      border: 1px solid var(--glass-border);
+      border-radius: 10px;
+      padding: 0.5rem;
       cursor: pointer;
       color: var(--text);
       display: flex;
       align-items: center;
       justify-content: center;
-      transition: background 0.15s;
-      flex-shrink: 0;
+      box-shadow: var(--glass-shadow);
+      transition: transform 0.25s, box-shadow 0.25s, border-color 0.2s;
+      z-index: 100;
     }
 
-    .theme-toggle:hover { background: var(--hover-bg); border-color: var(--text-light); }
+    .theme-toggle:hover {
+      border-color: var(--text-light);
+      transform: translateY(-2px);
+      box-shadow: var(--glass-hover-shadow);
+    }
 
     .theme-icon-light { display: inline-block; }
     .theme-icon-dark { display: none; }
@@ -674,31 +811,48 @@ function getReportCSS(): string {
       word-break: break-all;
     }
 
-    h2 { font-size: 1.3rem; margin: 2rem 0 1rem; }
+    h2 {
+      font-size: 1.3rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      margin: 2rem 0 1rem;
+    }
 
     .summary-cards {
       display: flex;
       gap: 1rem;
       flex-wrap: wrap;
+      margin-bottom: 1.5rem;
     }
 
     .summary-card {
       display: flex;
       flex-direction: column;
       align-items: center;
-      background: var(--card-bg);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
+      background: var(--glass-bg);
+      backdrop-filter: var(--glass-blur);
+      -webkit-backdrop-filter: var(--glass-blur);
+      border: 1px solid var(--glass-border);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--glass-shadow);
       padding: 1rem 1.5rem;
       min-width: 100px;
       text-decoration: none;
       color: inherit;
-      transition: box-shadow 0.15s, transform 0.15s;
+      transition: box-shadow 0.2s, transform 0.2s;
+      animation: fadeInUp 0.5s ease both;
     }
+
+    .summary-card:nth-child(1) { animation-delay: 0.05s; }
+    .summary-card:nth-child(2) { animation-delay: 0.1s; }
+    .summary-card:nth-child(3) { animation-delay: 0.15s; }
+    .summary-card:nth-child(4) { animation-delay: 0.2s; }
+    .summary-card:nth-child(5) { animation-delay: 0.25s; }
+    .summary-card:nth-child(6) { animation-delay: 0.3s; }
 
     .summary-card.clickable { cursor: pointer; }
     .summary-card.clickable:hover {
-      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+      box-shadow: var(--glass-hover-shadow);
       transform: translateY(-2px);
     }
 
@@ -712,9 +866,9 @@ function getReportCSS(): string {
 
     .summary-card.critical .count { color: var(--critical); }
     .summary-card.major .count { color: var(--major); }
+    .summary-card.normal .count { color: var(--normal); }
     .summary-card.minor .count { color: var(--minor); }
-    .summary-card.warning .count { color: var(--warning); }
-    .summary-card.cosmetic .count { color: var(--cosmetic); }
+    .summary-card.trivial .count { color: var(--trivial); }
     .summary-card.total .count { color: var(--total); }
 
     /* --- Filters --- */
@@ -722,9 +876,13 @@ function getReportCSS(): string {
       position: sticky;
       top: 0;
       z-index: 100;
-      background: var(--bg);
-      padding: 1rem 0;
-      border-bottom: 1px solid var(--border);
+      background: var(--glass-bg);
+      backdrop-filter: var(--glass-blur);
+      -webkit-backdrop-filter: var(--glass-blur);
+      border: 1px solid var(--glass-border);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--glass-shadow);
+      padding: 1rem;
       margin-bottom: 1rem;
     }
 
@@ -760,20 +918,26 @@ function getReportCSS(): string {
       align-items: center;
       gap: 0.35rem;
       padding: 0.3rem 0.7rem;
-      border: 1px solid var(--border);
+      border: 1px solid var(--glass-border);
       border-radius: 20px;
-      background: var(--card-bg);
+      background: var(--glass-bg);
+      backdrop-filter: var(--glass-blur);
+      -webkit-backdrop-filter: var(--glass-blur);
       color: var(--text-light);
       font-size: 0.8rem;
       font-weight: 500;
       cursor: pointer;
-      transition: all 0.15s;
+      transition: all 0.2s;
       user-select: none;
     }
 
-    .filter-btn:hover:not(:disabled) { border-color: var(--text-light); }
+    .filter-btn:hover:not(:disabled) {
+      border-color: var(--text-light);
+      transform: translateY(-1px);
+    }
     .filter-btn:disabled { opacity: 0.4; cursor: not-allowed; }
-    .filter-btn.active { background: var(--text); color: white; border-color: var(--text); }
+    .filter-btn.active { background: var(--text); color: var(--bg); border-color: var(--text); }
+    [data-theme="dark"] .filter-btn.active { background: #e2e8f0; color: #0f172a; border-color: #e2e8f0; }
 
     .filter-dot, .sev-dot {
       display: inline-block;
@@ -782,17 +946,16 @@ function getReportCSS(): string {
       border-radius: 50%;
     }
 
-    .filter-dot-untranslated { background: var(--cat-untranslated); }
-    .filter-dot-layout { background: var(--cat-layout); }
-    .filter-dot-missing { background: var(--cat-missing); }
-    .filter-dot-accessibility { background: var(--cat-accessibility); }
-    .filter-dot-functionality { background: var(--cat-functionality); }
+    .filter-dot-bleeding { background: var(--cat-bleeding); }
+    .filter-dot-formatting { background: var(--cat-formatting); }
+    .filter-dot-functional { background: var(--cat-functional); }
+    .filter-dot-source-issues { background: var(--cat-source-issues); }
 
     .sev-dot-critical { background: var(--critical); }
     .sev-dot-major { background: var(--major); }
+    .sev-dot-normal { background: var(--normal); }
     .sev-dot-minor { background: var(--minor); }
-    .sev-dot-warning { background: var(--warning); }
-    .sev-dot-cosmetic { background: var(--cosmetic); }
+    .sev-dot-trivial { background: var(--trivial); }
 
     .filter-count {
       background: rgba(0,0,0,0.1);
@@ -819,18 +982,22 @@ function getReportCSS(): string {
     .search-box input {
       width: 100%;
       padding: 0.4rem 0.75rem;
-      border: 1px solid var(--border);
-      border-radius: 6px;
+      border: 1px solid var(--glass-border);
+      border-radius: var(--radius);
       font-size: 0.85rem;
-      background: var(--card-bg);
+      font-family: inherit;
+      background: var(--input-bg);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      box-shadow: var(--input-shadow);
       color: var(--text);
-      transition: border-color 0.15s;
+      transition: border-color 0.2s, box-shadow 0.2s;
     }
 
     .search-box input:focus {
       outline: none;
       border-color: var(--total);
-      box-shadow: 0 0 0 2px rgba(37,99,235,0.15);
+      box-shadow: var(--input-shadow), 0 0 0 3px rgba(37,99,235,0.15);
     }
 
     .search-count {
@@ -849,30 +1016,40 @@ function getReportCSS(): string {
 
     .ctrl-btn {
       padding: 0.3rem 0.65rem;
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      background: var(--card-bg);
+      border: 1px solid var(--glass-border);
+      border-radius: var(--radius);
+      background: var(--glass-bg);
+      backdrop-filter: var(--glass-blur);
+      -webkit-backdrop-filter: var(--glass-blur);
       color: var(--text-light);
       font-size: 0.8rem;
       cursor: pointer;
-      transition: all 0.15s;
+      transition: all 0.2s;
     }
 
-    .ctrl-btn:hover { border-color: var(--text-light); color: var(--text); }
+    .ctrl-btn:hover {
+      border-color: var(--text-light);
+      color: var(--text);
+      transform: translateY(-1px);
+    }
 
     /* --- Screenshots --- */
     .screenshots {
-      background: var(--card-bg);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
+      background: var(--glass-bg);
+      backdrop-filter: var(--glass-blur);
+      -webkit-backdrop-filter: var(--glass-blur);
+      border: 1px solid var(--glass-border);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--glass-shadow);
       margin-top: 1.5rem;
+      animation: fadeInUp 0.5s ease 0.15s both;
     }
 
     .screenshot-tabs {
       display: flex;
       align-items: center;
       gap: 0;
-      border-bottom: 1px solid var(--border);
+      border-bottom: 1px solid var(--glass-border);
       padding: 0 0.5rem;
     }
 
@@ -886,6 +1063,7 @@ function getReportCSS(): string {
       color: var(--text-light);
       cursor: pointer;
       transition: all 0.15s;
+      font-family: inherit;
     }
 
     .screenshot-tab:hover { color: var(--text); }
@@ -897,15 +1075,21 @@ function getReportCSS(): string {
       padding: 0.25rem 0.6rem;
       font-size: 0.75rem;
       font-weight: 500;
-      border: 1px solid var(--border);
+      border: 1px solid var(--glass-border);
       border-radius: 4px;
-      background: var(--card-bg);
+      background: var(--glass-bg);
+      backdrop-filter: var(--glass-blur);
+      -webkit-backdrop-filter: var(--glass-blur);
       color: var(--text-light);
       cursor: pointer;
-      transition: all 0.15s;
+      transition: all 0.2s;
     }
 
-    .download-btn:hover { border-color: var(--text); color: var(--text); }
+    .download-btn:hover {
+      border-color: var(--text);
+      color: var(--text);
+      transform: translateY(-1px);
+    }
 
     .screenshot-pane {
       display: none;
@@ -934,7 +1118,7 @@ function getReportCSS(): string {
       flex: 1;
       overflow: auto;
       max-height: 70vh;
-      border-right: 1px solid var(--border);
+      border-right: 1px solid var(--glass-border);
     }
 
     .sbs-panel:last-child { border-right: none; }
@@ -942,13 +1126,15 @@ function getReportCSS(): string {
     .sbs-label {
       position: sticky;
       top: 0;
-      background: var(--bg);
+      background: var(--glass-bg);
+      backdrop-filter: var(--glass-blur);
+      -webkit-backdrop-filter: var(--glass-blur);
       padding: 0.25rem 0.5rem;
       font-size: 0.75rem;
       font-weight: 600;
       text-transform: uppercase;
       color: var(--text-light);
-      border-bottom: 1px solid var(--border);
+      border-bottom: 1px solid var(--glass-border);
       z-index: 1;
     }
 
@@ -960,26 +1146,38 @@ function getReportCSS(): string {
 
     /* --- Findings --- */
     .finding-card {
-      background: var(--card-bg);
-      border: 1px solid var(--border);
-      border-left: 4px solid var(--cosmetic);
-      border-radius: var(--radius);
-      margin-bottom: 0.5rem;
+      background: var(--glass-bg);
+      backdrop-filter: var(--glass-blur);
+      -webkit-backdrop-filter: var(--glass-blur);
+      border: 1px solid var(--glass-border);
+      border-left: 4px solid var(--trivial);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--glass-shadow);
+      margin-bottom: 0.75rem;
+      transition: transform 0.2s, box-shadow 0.2s;
+      animation: fadeInUp 0.4s ease both;
+    }
+
+    .finding-card:hover {
+      transform: translateY(-1px);
+      box-shadow: var(--glass-hover-shadow);
     }
 
     .finding-card.severity-critical { border-left-color: var(--critical); }
     .finding-card.severity-major { border-left-color: var(--major); }
+    .finding-card.severity-normal { border-left-color: var(--normal); }
     .finding-card.severity-minor { border-left-color: var(--minor); }
-    .finding-card.severity-warning { border-left-color: var(--warning); }
-    .finding-card.severity-cosmetic { border-left-color: var(--cosmetic); }
+    .finding-card.severity-trivial { border-left-color: var(--trivial); }
 
     .finding-summary {
       padding: 0.75rem 1rem;
       cursor: pointer;
       user-select: none;
+      border-radius: var(--radius-lg);
     }
 
-    .finding-summary:hover { background: var(--hover-bg); }
+    .finding-summary:hover { background: rgba(0, 0, 0, 0.02); }
+    [data-theme="dark"] .finding-summary:hover { background: rgba(255, 255, 255, 0.02); }
 
     .finding-body {
       display: none;
@@ -1020,14 +1218,13 @@ function getReportCSS(): string {
 
     .badge-critical { background: var(--critical); }
     .badge-major { background: var(--major); }
+    .badge-normal { background: var(--normal); }
     .badge-minor { background: var(--minor); }
-    .badge-warning { background: var(--warning); }
-    .badge-cosmetic { background: var(--cosmetic); }
-    .badge-untranslated { background: var(--cat-untranslated); }
-    .badge-layout { background: var(--cat-layout); }
-    .badge-missing { background: var(--cat-missing); }
-    .badge-accessibility { background: var(--cat-accessibility); }
-    .badge-functionality { background: var(--cat-functionality); }
+    .badge-trivial { background: var(--trivial); }
+    .badge-bleeding { background: var(--cat-bleeding); }
+    .badge-formatting { background: var(--cat-formatting); }
+    .badge-functional { background: var(--cat-functional); }
+    .badge-source-issues { background: var(--cat-source-issues); }
 
     .confidence {
       margin-left: auto;
@@ -1035,7 +1232,12 @@ function getReportCSS(): string {
       color: var(--text-light);
     }
 
-    .finding-title { font-size: 1.05rem; font-weight: 600; margin-bottom: 0.5rem; }
+    .finding-title {
+      font-size: 1.05rem;
+      font-weight: 600;
+      margin-bottom: 0.5rem;
+      letter-spacing: -0.01em;
+    }
 
     .finding-description {
       color: var(--text-light);
@@ -1062,16 +1264,22 @@ function getReportCSS(): string {
     .copy-btn {
       padding: 0.15rem 0.5rem;
       font-size: 0.7rem;
-      border: 1px solid var(--border);
+      border: 1px solid var(--glass-border);
       border-radius: 4px;
-      background: var(--card-bg);
+      background: var(--glass-bg);
+      backdrop-filter: var(--glass-blur);
+      -webkit-backdrop-filter: var(--glass-blur);
       color: var(--text-light);
       cursor: pointer;
-      transition: all 0.15s;
+      transition: all 0.2s;
       white-space: nowrap;
     }
 
-    .copy-btn:hover { border-color: var(--text-light); color: var(--text); }
+    .copy-btn:hover {
+      border-color: var(--text-light);
+      color: var(--text);
+      transform: translateY(-1px);
+    }
     .copy-btn.copied { background: #059669; color: white; border-color: #059669; }
 
     .finding-diff {
@@ -1115,9 +1323,11 @@ function getReportCSS(): string {
     [data-theme="dark"] .diff-add { background: #14532d; color: #bbf7d0; }
 
     .finding-recommendation {
-      background: var(--recommendation-bg);
+      background: var(--glass-bg);
+      backdrop-filter: var(--glass-blur);
+      -webkit-backdrop-filter: var(--glass-blur);
       border: 1px solid var(--recommendation-border);
-      border-radius: 4px;
+      border-radius: var(--radius);
       padding: 0.75rem;
       font-size: 0.85rem;
       margin-top: 0.5rem;
@@ -1127,14 +1337,14 @@ function getReportCSS(): string {
 
     .severity-heading {
       padding-left: 0.5rem;
-      border-left: 4px solid var(--cosmetic);
+      border-left: 4px solid var(--trivial);
     }
 
     .severity-heading.severity-critical { border-left-color: var(--critical); }
     .severity-heading.severity-major { border-left-color: var(--major); }
+    .severity-heading.severity-normal { border-left-color: var(--normal); }
     .severity-heading.severity-minor { border-left-color: var(--minor); }
-    .severity-heading.severity-warning { border-left-color: var(--warning); }
-    .severity-heading.severity-cosmetic { border-left-color: var(--cosmetic); }
+    .severity-heading.severity-trivial { border-left-color: var(--trivial); }
 
     .no-findings {
       text-align: center;
@@ -1153,6 +1363,26 @@ function getReportCSS(): string {
       font-size: 0.85rem;
     }
 
+    /* --- Fallback for browsers without backdrop-filter --- */
+    @supports not (backdrop-filter: blur(16px)) {
+      .report-header,
+      .summary-card,
+      .filters,
+      .filter-btn,
+      .search-box input,
+      .ctrl-btn,
+      .screenshots,
+      .finding-card,
+      .theme-toggle,
+      .download-btn,
+      .copy-btn,
+      .finding-recommendation,
+      .badge,
+      .sbs-label {
+        background: var(--card-bg);
+      }
+    }
+
     @media (max-width: 768px) {
       body { padding: 1rem; }
       .summary-cards { flex-direction: column; }
@@ -1163,7 +1393,8 @@ function getReportCSS(): string {
     }
 
     @media print {
-      .filters, .download-btn, .theme-toggle, .global-controls, .search-box { display: none !important; }
+      body::before, body::after { display: none !important; }
+      .filters, .download-btn, .theme-toggle, .global-controls, .search-box, .back-link { display: none !important; }
       .screenshot-pane { max-height: none !important; overflow: visible !important; }
       .finding-card { break-inside: avoid; }
       .finding-card .finding-body { display: block !important; }

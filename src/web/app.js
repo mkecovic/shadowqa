@@ -40,7 +40,6 @@ const errorRetry = document.getElementById("errorRetry");
 const successCard = document.getElementById("successCard");
 const successMeta = document.getElementById("successMeta");
 const reportLink = document.getElementById("reportLink");
-const reportNewTab = document.getElementById("reportNewTab");
 const historySection = document.getElementById("historySection");
 const historyList = document.getElementById("historyList");
 
@@ -141,6 +140,24 @@ form.addEventListener("submit", async (e) => {
   }
 });
 
+async function animateRemainingSteps(currentStep) {
+  var stepLabels = ["", "Capturing source...", "Capturing target...", "Analyzing...", "Generating report..."];
+  var stepProgress = [0, 20, 40, 65, 85];
+  var startFrom = Math.floor(currentStep) + 1;
+  // Animate through any steps the user hasn't seen yet
+  for (var s = startFrom; s <= 4; s++) {
+    progressStatus.textContent = stepLabels[s];
+    progressFill.style.width = stepProgress[s] + "%";
+    updateSteps(s);
+    await sleep(400);
+  }
+  // Final complete state
+  progressFill.style.width = "100%";
+  progressStatus.textContent = "Complete!";
+  updateSteps(5);
+  await sleep(300);
+}
+
 async function pollProgress(jobId) {
   const pollInterval = 1000;
   const maxPolls = 120;
@@ -164,6 +181,7 @@ async function pollProgress(jobId) {
     updateSteps(step);
 
     if (job.status === "complete") {
+      await animateRemainingSteps(step);
       progressEl.classList.add("hidden");
       showSuccess(jobId);
       loadHistory();
@@ -182,7 +200,6 @@ async function pollProgress(jobId) {
 function showSuccess(jobId) {
   const reportUrl = `/api/reports/${jobId}`;
   reportLink.href = reportUrl;
-  reportNewTab.href = reportUrl;
   successMeta.textContent = `Job ${jobId.slice(0, 8)}...`;
   successCard.classList.remove("hidden");
 }

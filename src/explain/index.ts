@@ -20,6 +20,7 @@ export function explainFindings(rawFindings: RawFinding[]): Finding[] {
       element: raw.element,
       source: raw.source,
       target: raw.target,
+      boundingBox: raw.boundingBox,
     };
   });
 }
@@ -28,16 +29,14 @@ function generateImpact(raw: RawFinding): string {
   const meta = (raw.metadata || {}) as Record<string, any>;
 
   switch (raw.category) {
-    case "untranslated":
+    case "bleeding":
       return generateUntranslatedImpact(raw, meta);
-    case "layout":
+    case "formatting":
       return generateLayoutImpact(raw, meta);
-    case "missing":
-      return generateMissingImpact(raw, meta);
-    case "functionality":
-      return generateFunctionalityImpact(raw, meta);
-    case "accessibility":
-      return generateA11yImpact(raw, meta);
+    case "functional":
+      return generateFunctionalImpact(raw, meta);
+    case "source-issues":
+      return generateSourceIssuesImpact(raw, meta);
     default:
       return "A localization issue was detected that may affect the user experience.";
   }
@@ -94,6 +93,22 @@ function generateLayoutImpact(
   }
 
   return `A layout issue was detected on the localized page, likely caused by differences in text length after translation.`;
+}
+
+function generateFunctionalImpact(
+  raw: RawFinding,
+  meta: Record<string, any>
+): string {
+  const type = meta.type as string | undefined;
+
+  // Dispatch based on metadata.type
+  if (type === "missing") {
+    return generateMissingImpact(raw, meta);
+  }
+  if (type === "new-violation" || type === "regression" || type === "violation-spread") {
+    return generateA11yImpact(raw, meta);
+  }
+  return generateFunctionalityImpact(raw, meta);
 }
 
 function generateMissingImpact(
@@ -163,6 +178,18 @@ function generateFunctionalityImpact(
   return `An interactive element's behavior changed on the localized page, which may affect functionality for users.`;
 }
 
+function generateSourceIssuesImpact(
+  raw: RawFinding,
+  meta: Record<string, any>
+): string {
+  const impact = meta.impact as string | undefined;
+
+  if (impact === "critical" || impact === "serious") {
+    return `This is a pre-existing accessibility issue that affects both the source and target pages. While not caused by localization, it impacts users with disabilities on both versions of the site.`;
+  }
+  return `This accessibility issue exists on both the source and target pages. It is not a localization regression but a pre-existing issue worth noting.`;
+}
+
 function generateA11yImpact(
   raw: RawFinding,
   meta: Record<string, any>
@@ -170,12 +197,6 @@ function generateA11yImpact(
   const impact = meta.impact as string | undefined;
   const type = meta.type as string | undefined;
 
-  if (type === "pre-existing") {
-    if (impact === "critical" || impact === "serious") {
-      return `This is a pre-existing accessibility issue that affects both the source and target pages. While not caused by localization, it impacts users with disabilities on both versions of the site.`;
-    }
-    return `This accessibility issue exists on both the source and target pages. It is not a localization regression but a pre-existing issue worth noting.`;
-  }
   if (type === "regression") {
     return `Users who rely on assistive technology (screen readers, keyboard navigation) will be directly affected. This accessibility check was passing on the source page but is failing on the localized version, indicating a regression introduced by localization.`;
   }
@@ -198,7 +219,7 @@ function generateRecommendation(raw: RawFinding): string {
   const meta = (raw.metadata || {}) as Record<string, any>;
 
   switch (raw.category) {
-    case "untranslated": {
+    case "bleeding": {
       const scriptMismatch = meta.scriptMismatch as boolean | undefined;
       if (scriptMismatch) {
         return `This text appears to be in the wrong script for the target locale. Verify it was included in the translation package and re-translate if needed.`;
@@ -206,7 +227,7 @@ function generateRecommendation(raw: RawFinding): string {
       return `Verify whether this text was intentionally left untranslated (e.g., brand names, technical terms). If it should be translated, add it to the translation strings and request localization.`;
     }
 
-    case "layout": {
+    case "formatting": {
       const type = meta.type as string | undefined;
       if (type === "truncation") {
         return `The translated text is too long for its container. Consider increasing the container width, enabling text wrapping, or working with translators to use a shorter translation.`;
@@ -220,11 +241,29 @@ function generateRecommendation(raw: RawFinding): string {
       return `Review the layout in the localized version and adjust CSS or container sizing to accommodate translated text.`;
     }
 
-    case "missing":
-      return `Verify this element was not accidentally removed during localization. Check the localized page template or code for missing markup. If the element is intentionally different, document the reason.`;
-
-    case "functionality": {
+    case "functional": {
       const type = meta.type as string | undefined;
+
+      // Missing element findings
+      if (type === "missing") {
+        return `Verify this element was not accidentally removed during localization. Check the localized page template or code for missing markup. If the element is intentionally different, document the reason.`;
+      }
+
+      // Accessibility findings (non-pre-existing)
+      if (type === "new-violation" || type === "regression" || type === "violation-spread") {
+        const helpUrl = meta.helpUrl as string | undefined;
+        const failureSummary = meta.failureSummary as string | undefined;
+        let rec = "Review the accessibility violation introduced in the localized version and fix it to ensure all users can access this content.";
+        if (failureSummary) {
+          rec += ` Failure details: ${failureSummary}`;
+        }
+        if (helpUrl) {
+          rec += ` Learn more: ${helpUrl}`;
+        }
+        return rec;
+      }
+
+      // Functionality findings
       if (type === "tag-downgrade") {
         return `Restore the original interactive tag or add appropriate ARIA roles to maintain accessibility and functionality.`;
       }
@@ -240,23 +279,9 @@ function generateRecommendation(raw: RawFinding): string {
       return `Review the interactive element on the localized page and verify its behavior matches the source page.`;
     }
 
-    case "accessibility": {
-      const type = meta.type as string | undefined;
+    case "source-issues": {
       const helpUrl = meta.helpUrl as string | undefined;
-      const failureSummary = meta.failureSummary as string | undefined;
-
-      if (type === "pre-existing") {
-        let rec = "This is a pre-existing issue, not caused by localization. Consider fixing it on the source page — it will then be resolved on all localized versions.";
-        if (helpUrl) {
-          rec += ` Learn more: ${helpUrl}`;
-        }
-        return rec;
-      }
-
-      let rec = "Review the accessibility violation introduced in the localized version and fix it to ensure all users can access this content.";
-      if (failureSummary) {
-        rec += ` Failure details: ${failureSummary}`;
-      }
+      let rec = "This is a pre-existing issue, not caused by localization. Consider fixing it on the source page — it will then be resolved on all localized versions.";
       if (helpUrl) {
         rec += ` Learn more: ${helpUrl}`;
       }

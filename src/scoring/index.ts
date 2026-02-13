@@ -21,18 +21,16 @@ export function scoreFinding(raw: RawFinding): ScoringResult {
   const meta = (raw.metadata || {}) as Record<string, any>;
 
   switch (raw.category) {
-    case "untranslated":
+    case "bleeding":
       return scoreUntranslated(raw, meta);
-    case "layout":
+    case "formatting":
       return scoreLayout(raw, meta);
-    case "missing":
-      return scoreMissing(raw, meta);
-    case "functionality":
-      return scoreFunctionality(raw, meta);
-    case "accessibility":
-      return scoreAccessibility(raw, meta);
+    case "functional":
+      return scoreFunctional(raw, meta);
+    case "source-issues":
+      return scoreSourceIssues(raw, meta);
     default:
-      return { severity: "cosmetic", confidence: 0.4 };
+      return { severity: "trivial", confidence: 0.4 };
   }
 }
 
@@ -50,7 +48,7 @@ function scoreUntranslated(
   }
 
   if (textLength <= 10) {
-    return { severity: "minor", confidence: 0.5 };
+    return { severity: "normal", confidence: 0.5 };
   }
 
   if (isHeading) {
@@ -79,7 +77,7 @@ function scoreLayout(
 
   if (type === "resize") {
     if (aboveFold) return { severity: "major", confidence: 0.75 };
-    return { severity: "minor", confidence: 0.65 };
+    return { severity: "normal", confidence: 0.65 };
   }
 
   if (type === "overflow") {
@@ -91,7 +89,7 @@ function scoreLayout(
     return { severity: "major", confidence: 0.7 };
   }
 
-  return { severity: "minor", confidence: 0.6 };
+  return { severity: "normal", confidence: 0.6 };
 }
 
 function scoreMissing(
@@ -108,7 +106,7 @@ function scoreMissing(
   if (isLandmark || isHeading) {
     return { severity: "major", confidence: 0.8 };
   }
-  return { severity: "minor", confidence: 0.65 };
+  return { severity: "normal", confidence: 0.65 };
 }
 
 function scoreFunctionality(
@@ -139,22 +137,31 @@ function scoreFunctionality(
     return { severity: "major", confidence: 0.75 };
   }
 
-  return { severity: "minor", confidence: 0.6 };
+  return { severity: "normal", confidence: 0.6 };
 }
 
-function scoreAccessibility(
+function scoreFunctional(
+  raw: RawFinding,
+  meta: Record<string, any>
+): ScoringResult {
+  const type = meta.type as string | undefined;
+
+  // Dispatch based on metadata.type to the appropriate sub-scorer
+  if (type === "missing") {
+    return scoreMissing(raw, meta);
+  }
+  if (type === "new-violation" || type === "regression" || type === "violation-spread") {
+    return scoreAccessibilityFunctional(raw, meta);
+  }
+  return scoreFunctionality(raw, meta);
+}
+
+function scoreAccessibilityFunctional(
   raw: RawFinding,
   meta: Record<string, any>
 ): ScoringResult {
   const impact = meta.impact as string | undefined;
   const type = meta.type as string | undefined;
-
-  // Pre-existing issues → always warning severity
-  if (type === "pre-existing") {
-    if (impact === "critical") return { severity: "warning", confidence: 0.9 };
-    if (impact === "serious") return { severity: "warning", confidence: 0.85 };
-    return { severity: "warning", confidence: 0.7 };
-  }
 
   if (type === "regression") {
     if (impact === "critical") return { severity: "critical", confidence: 0.9 };
@@ -165,14 +172,25 @@ function scoreAccessibility(
     if (impact === "critical") return { severity: "critical", confidence: 0.9 };
     if (impact === "serious") return { severity: "major", confidence: 0.8 };
     if (impact === "moderate") return { severity: "major", confidence: 0.7 };
-    return { severity: "minor", confidence: 0.6 };
+    return { severity: "normal", confidence: 0.6 };
   }
 
   if (type === "violation-spread") {
     if (impact === "critical" || impact === "serious")
       return { severity: "major", confidence: 0.75 };
-    return { severity: "minor", confidence: 0.6 };
+    return { severity: "normal", confidence: 0.6 };
   }
 
   return { severity: "major", confidence: 0.5 };
+}
+
+function scoreSourceIssues(
+  raw: RawFinding,
+  meta: Record<string, any>
+): ScoringResult {
+  const impact = meta.impact as string | undefined;
+
+  if (impact === "critical") return { severity: "minor", confidence: 0.9 };
+  if (impact === "serious") return { severity: "minor", confidence: 0.85 };
+  return { severity: "minor", confidence: 0.7 };
 }

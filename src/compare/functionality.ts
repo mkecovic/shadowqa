@@ -29,12 +29,13 @@ export function compareFunctionality(
 
       if (sourceIsInteractive && !targetIsInteractive) {
         findings.push({
-          category: "functionality",
+          category: "functional",
           title: `Tag downgrade: <${sourceNode.tag}> → <${targetNode.tag}>`,
           description: `Interactive element at "${selector}" was downgraded from <${sourceNode.tag}> to <${targetNode.tag}> on the localized page`,
           element: { selector, tag: targetNode.tag },
           source: `<${sourceNode.tag}>`,
           target: `<${targetNode.tag}>`,
+          boundingBox: targetNode.boundingBox ?? undefined,
           metadata: { type: "tag-downgrade" },
         });
       }
@@ -47,12 +48,13 @@ export function compareFunctionality(
 
       if (sourceHref && !targetHref) {
         findings.push({
-          category: "functionality",
+          category: "functional",
           title: `Link href removed on <a>`,
           description: `The link at "${selector}" lost its href attribute on the localized page`,
           element: { selector, tag: "a" },
           source: `href="${sourceHref}"`,
           target: "(href removed)",
+          boundingBox: targetNode.boundingBox ?? undefined,
           metadata: { type: "href-removed" },
         });
       } else if (sourceHref && targetHref) {
@@ -61,23 +63,25 @@ export function compareFunctionality(
         if (linkDomain && linkDomain === sourcePageDomain && sourceHref === targetHref) {
           // Same-domain link unchanged on target — may need localization
           findings.push({
-            category: "functionality",
+            category: "functional",
             title: `Link not localized on <a>`,
             description: `The link at "${selector}" still points to the source domain (${sourcePageDomain}) on the localized page`,
             element: { selector, tag: "a" },
             source: `href="${sourceHref}"`,
             target: `href="${targetHref}" (unchanged)`,
+            boundingBox: targetNode.boundingBox ?? undefined,
             metadata: { type: "href-not-localized" },
           });
         } else if (linkDomain && linkDomain !== sourcePageDomain && sourceHref !== targetHref) {
           // Third-party link changed — unexpected
           findings.push({
-            category: "functionality",
+            category: "functional",
             title: `Third-party link changed on <a>`,
             description: `The external link at "${selector}" points to a different destination on the localized page`,
             element: { selector, tag: "a" },
             source: `href="${sourceHref}"`,
             target: `href="${targetHref}"`,
+            boundingBox: targetNode.boundingBox ?? undefined,
             metadata: { type: "href-changed" },
           });
         }
@@ -92,23 +96,25 @@ export function compareFunctionality(
 
       if (sourceVal === undefined && targetVal !== undefined) {
         findings.push({
-          category: "functionality",
+          category: "functional",
           title: `Element became ${attr}: <${targetNode.tag}>`,
           description: `The element at "${selector}" gained "${attr}" attribute on the localized page`,
           element: { selector, tag: targetNode.tag },
           source: `(no ${attr})`,
           target: `${attr}="${targetVal}"`,
+          boundingBox: targetNode.boundingBox ?? undefined,
           metadata: { type: "state-change", attribute: attr },
         });
       } else if (sourceVal !== undefined && targetVal === undefined && attr !== "aria-disabled") {
         // disabled removed is less concerning, but note it
         findings.push({
-          category: "functionality",
+          category: "functional",
           title: `${attr} removed: <${targetNode.tag}>`,
           description: `The element at "${selector}" lost "${attr}" attribute on the localized page`,
           element: { selector, tag: targetNode.tag },
           source: `${attr}="${sourceVal}"`,
           target: `(${attr} removed)`,
+          boundingBox: targetNode.boundingBox ?? undefined,
           metadata: { type: "state-change", attribute: attr },
         });
       }
@@ -123,24 +129,26 @@ export function compareFunctionality(
 
       if (sourceAction && sourceAction !== targetAction) {
         findings.push({
-          category: "functionality",
+          category: "functional",
           title: `Form action changed`,
           description: `The form at "${selector}" has a different action on the localized page`,
           element: { selector, tag: "form" },
           source: `action="${sourceAction}"`,
           target: targetAction ? `action="${targetAction}"` : "(action removed)",
+          boundingBox: targetNode.boundingBox ?? undefined,
           metadata: { type: "form-change", attribute: "action" },
         });
       }
 
       if (sourceMethod && sourceMethod !== targetMethod) {
         findings.push({
-          category: "functionality",
+          category: "functional",
           title: `Form method changed`,
           description: `The form at "${selector}" has a different method on the localized page`,
           element: { selector, tag: "form" },
           source: `method="${sourceMethod}"`,
           target: targetMethod ? `method="${targetMethod}"` : "(method removed)",
+          boundingBox: targetNode.boundingBox ?? undefined,
           metadata: { type: "form-change", attribute: "method" },
         });
       }
@@ -155,12 +163,13 @@ export function compareFunctionality(
       } else if (sourceTabindex === undefined && targetTabindex === "-1") {
         // Element made unfocusable on target
         findings.push({
-          category: "functionality",
+          category: "functional",
           title: `Element made unfocusable: <${targetNode.tag}>`,
           description: `The element at "${selector}" was given tabindex="-1" on the localized page, removing it from tab order`,
           element: { selector, tag: targetNode.tag },
           source: "(no tabindex)",
           target: 'tabindex="-1"',
+          boundingBox: targetNode.boundingBox ?? undefined,
           metadata: { type: "tabindex-change" },
         });
       }

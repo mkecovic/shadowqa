@@ -134,7 +134,7 @@ async function main(): Promise<void> {
 
     // Step 2: Compare
     console.log("Analyzing localization differences...");
-    const { findings: rawFindings, diffImage } = await comparePages(
+    const { findings: rawFindings, diffImage, annotatedScreenshot } = await comparePages(
       sourceCapture,
       targetCapture
     );
@@ -146,9 +146,9 @@ async function main(): Promise<void> {
     const severityOrder: Record<string, number> = {
       critical: 0,
       major: 1,
-      minor: 2,
-      warning: 3,
-      cosmetic: 4,
+      normal: 2,
+      minor: 3,
+      trivial: 4,
     };
     findings.sort(
       (a, b) =>
@@ -171,15 +171,16 @@ async function main(): Promise<void> {
       summary: {
         critical: findings.filter((f) => f.severity === "critical").length,
         major: findings.filter((f) => f.severity === "major").length,
+        normal: findings.filter((f) => f.severity === "normal").length,
         minor: findings.filter((f) => f.severity === "minor").length,
-        warning: findings.filter((f) => f.severity === "warning").length,
-        cosmetic: findings.filter((f) => f.severity === "cosmetic").length,
+        trivial: findings.filter((f) => f.severity === "trivial").length,
         total: findings.length,
       },
       findings,
       sourceScreenshot: sourceCapture.screenshot.toString("base64"),
       targetScreenshot: targetCapture.screenshot.toString("base64"),
       diffScreenshot: diffImage.toString("base64"),
+      annotatedScreenshot: annotatedScreenshot.toString("base64"),
     };
 
     const html = buildHtmlReport(report);
@@ -192,12 +193,14 @@ async function main(): Promise<void> {
     console.log(`Findings: ${report.summary.total} total`);
     if (report.summary.critical > 0) console.log(`  Critical: ${report.summary.critical}`);
     if (report.summary.major > 0) console.log(`  Major: ${report.summary.major}`);
+    if (report.summary.normal > 0) console.log(`  Normal: ${report.summary.normal}`);
     if (report.summary.minor > 0) console.log(`  Minor: ${report.summary.minor}`);
-    if (report.summary.warning > 0) console.log(`  Warning: ${report.summary.warning}`);
-    if (report.summary.cosmetic > 0) console.log(`  Cosmetic: ${report.summary.cosmetic}`);
+    if (report.summary.trivial > 0) console.log(`  Trivial: ${report.summary.trivial}`);
   } finally {
     await closeBrowser();
   }
+
+  process.exit(0);
 }
 
 main().catch((err) => {

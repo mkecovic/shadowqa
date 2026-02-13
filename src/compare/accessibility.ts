@@ -15,7 +15,7 @@ export function compareAccessibility(
       for (const node of targetViolation.nodes) {
         const selector = node.target.join(" ");
         findings.push({
-          category: "accessibility",
+          category: "functional",
           title: `New a11y violation: ${targetViolation.help}`,
           description: `${targetViolation.description}. This issue was introduced in the localized version.`,
           element: {
@@ -46,7 +46,7 @@ export function compareAccessibility(
       const newNodeCount =
         targetViolation.nodes.length - sourceViolation.nodes.length;
       findings.push({
-        category: "accessibility",
+        category: "functional",
         title: `A11y violation spread: ${targetViolation.help}`,
         description: `The "${targetViolation.id}" violation now affects ${targetViolation.nodes.length} elements (was ${sourceViolation.nodes.length}). ${newNodeCount} new element(s) affected in the localized version.`,
         element: {
@@ -81,7 +81,7 @@ export function compareAccessibility(
         );
         if (!alreadyReported) {
           findings.push({
-            category: "accessibility",
+            category: "functional",
             title: `A11y regression: ${targetViolation.help}`,
             description: `Rule "${targetViolation.id}" was passing on the source page but is failing on the localized version. ${targetViolation.description}`,
             element: {
@@ -113,7 +113,7 @@ export function compareAccessibility(
 
     // Same rule, same or fewer nodes — this is a pre-existing issue
     findings.push({
-      category: "accessibility",
+      category: "source-issues",
       title: `Pre-existing a11y issue: ${targetViolation.help}`,
       description: `${targetViolation.description}. This issue exists on both the source and target pages — it is not caused by localization.`,
       element: {

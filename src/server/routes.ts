@@ -136,7 +136,7 @@ async function processComparison(
 
   // Step 3: Compare
   activeJobs.set(jobId, { status: "Comparing pages — analyzing localization...", progress: 45 });
-  const { findings: rawFindings, diffImage } = await comparePages(
+  const { findings: rawFindings, diffImage, annotatedScreenshot } = await comparePages(
     sourceCapture,
     targetCapture
   );
@@ -147,7 +147,7 @@ async function processComparison(
   const findings = explainFindings(rawFindings);
 
   // Sort by severity
-  const severityOrder: Record<string, number> = { critical: 0, major: 1, minor: 2, warning: 3, cosmetic: 4 };
+  const severityOrder: Record<string, number> = { critical: 0, major: 1, normal: 2, minor: 3, trivial: 4 };
   findings.sort(
     (a, b) => (severityOrder[a.severity] ?? 99) - (severityOrder[b.severity] ?? 99)
   );
@@ -168,15 +168,16 @@ async function processComparison(
     summary: {
       critical: findings.filter((f) => f.severity === "critical").length,
       major: findings.filter((f) => f.severity === "major").length,
+      normal: findings.filter((f) => f.severity === "normal").length,
       minor: findings.filter((f) => f.severity === "minor").length,
-      warning: findings.filter((f) => f.severity === "warning").length,
-      cosmetic: findings.filter((f) => f.severity === "cosmetic").length,
+      trivial: findings.filter((f) => f.severity === "trivial").length,
       total: findings.length,
     },
     findings,
     sourceScreenshot: sourceCapture.screenshot.toString("base64"),
     targetScreenshot: targetCapture.screenshot.toString("base64"),
     diffScreenshot: diffImage.toString("base64"),
+    annotatedScreenshot: annotatedScreenshot.toString("base64"),
   };
 
   const html = buildHtmlReport(report);

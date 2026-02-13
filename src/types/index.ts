@@ -1,14 +1,13 @@
 export type FindingCategory =
-  | "untranslated"
-  | "layout"
-  | "missing"
-  | "accessibility"
-  | "functionality";
+  | "bleeding"
+  | "formatting"
+  | "functional"
+  | "source-issues";
 
 export interface Finding {
   id: string;
   category: FindingCategory;
-  severity: "critical" | "major" | "minor" | "warning" | "cosmetic";
+  severity: "critical" | "major" | "normal" | "minor" | "trivial";
   confidence: number;
   title: string;
   description: string;
@@ -20,6 +19,7 @@ export interface Finding {
   };
   source: string;
   target: string;
+  boundingBox?: BoundingBox;
 }
 
 export interface DOMNode {
@@ -98,15 +98,16 @@ export interface ComparisonReport {
   summary: {
     critical: number;
     major: number;
+    normal: number;
     minor: number;
-    warning: number;
-    cosmetic: number;
+    trivial: number;
     total: number;
   };
   findings: Finding[];
   sourceScreenshot: string; // base64
   targetScreenshot: string; // base64
   diffScreenshot: string; // base64
+  annotatedScreenshot: string; // base64
 }
 
 export interface CompareRequest {
@@ -122,5 +123,6 @@ export interface RawFinding {
   element: Finding["element"];
   source: string;
   target: string;
+  boundingBox?: BoundingBox;
   metadata?: Record<string, unknown>;
 }
