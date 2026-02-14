@@ -2,11 +2,10 @@ import { Router, type Request, type Response } from "express";
 import crypto from "crypto";
 import path from "path";
 import fs from "fs";
-import { capturePage } from "../capture/index.js";
-import { comparePages } from "../compare/index.js";
-import { explainFindings } from "../explain/index.js";
-import { buildHtmlReport } from "../report/index.js";
-import type { ComparisonReport, CompareRequest } from "../types/index.js";
+import { processComparison } from "../compare/process.js";
+import { BatchManager } from "../batch/index.js";
+import { discoverPairs } from "../batch/sitemap.js";
+import type { CompareRequest } from "../types/index.js";
 
 const router = Router();
 const reportsDir = path.resolve(process.cwd(), "reports");
@@ -22,6 +21,11 @@ const activeJobs = new Map<
   { status: string; progress: number; error?: string }
 >();
 
+// Batch manager (singleton)
+const batchManager = new BatchManager(reportsDir);
+
+// --- Single compare endpoints ---
+
 router.post("/api/compare", async (req: Request, res: Response) => {
   const { sourceUrl, targetUrl, viewport } = req.body as CompareRequest;
 
@@ -30,7 +34,6 @@ router.post("/api/compare", async (req: Request, res: Response) => {
     return;
   }
 
-  // Basic URL validation
   try {
     new URL(sourceUrl);
     new URL(targetUrl);
@@ -39,7 +42,6 @@ router.post("/api/compare", async (req: Request, res: Response) => {
     return;
   }
 
-  // Validate viewport if provided
   if (viewport && (typeof viewport.width !== "number" || typeof viewport.height !== "number")) {
     res.status(400).json({ error: "viewport must have numeric width and height" });
     return;
@@ -48,11 +50,18 @@ router.post("/api/compare", async (req: Request, res: Response) => {
   const jobId = crypto.randomUUID();
   activeJobs.set(jobId, { status: "capturing", progress: 0 });
 
-  // Return job ID immediately
   res.json({ jobId });
 
-  // Process in background
-  processComparison(jobId, sourceUrl, targetUrl, viewport).catch((err) => {
+  processComparison(
+    sourceUrl,
+    targetUrl,
+    viewport,
+    reportsDir,
+    (status, progress) => {
+      activeJobs.set(jobId, { status, progress });
+    },
+    jobId
+  ).catch((err) => {
     console.error(`Job ${jobId} failed:`, err);
     activeJobs.set(jobId, {
       status: "error",
@@ -71,6 +80,8 @@ router.get("/api/status/:jobId", (req: Request, res: Response) => {
   }
   res.json(job);
 });
+
+// --- Report endpoints ---
 
 router.get("/api/reports", (_req: Request, res: Response) => {
   try {
@@ -116,87 +127,116 @@ router.get("/api/reports/:id", (req: Request, res: Response) => {
   res.sendFile(reportPath);
 });
 
-async function processComparison(
-  jobId: string,
-  sourceUrl: string,
-  targetUrl: string,
-  viewport?: { width: number; height: number }
-): Promise<void> {
-  // Step 1: Capture both pages in parallel
-  activeJobs.set(jobId, { status: "Capturing pages...", progress: 5 });
-  const [sourceCapture, targetCapture] = await Promise.all([
-    capturePage(sourceUrl, viewport),
-    capturePage(targetUrl, viewport),
-  ]);
-  activeJobs.set(jobId, { status: "Pages captured", progress: 40 });
+// --- Batch endpoints ---
 
-  // Locales are auto-detected from <html lang> on each page
-  const sourceLocale = sourceCapture.lang || undefined;
-  const targetLocale = targetCapture.lang || undefined;
-
-  // Step 3: Compare
-  activeJobs.set(jobId, { status: "Comparing pages — analyzing localization...", progress: 45 });
-  const { findings: rawFindings, diffImage, annotatedScreenshot } = await comparePages(
-    sourceCapture,
-    targetCapture
-  );
-  activeJobs.set(jobId, { status: "Analysis complete — scoring findings...", progress: 65 });
-
-  // Step 4: Score and explain
-  activeJobs.set(jobId, { status: "Scoring and explaining findings...", progress: 70 });
-  const findings = explainFindings(rawFindings);
-
-  // Sort by severity
-  const severityOrder: Record<string, number> = { critical: 0, major: 1, normal: 2, minor: 3, trivial: 4 };
-  findings.sort(
-    (a, b) => (severityOrder[a.severity] ?? 99) - (severityOrder[b.severity] ?? 99)
-  );
-
-  // Step 5: Build report
-  activeJobs.set(jobId, { status: "Generating HTML report...", progress: 85 });
-
-  const usedViewport = sourceCapture.viewport;
-
-  const report: ComparisonReport = {
-    id: jobId,
-    sourceUrl,
-    targetUrl,
-    sourceLocale,
-    targetLocale,
-    viewport: usedViewport,
-    timestamp: new Date().toISOString(),
-    summary: {
-      critical: findings.filter((f) => f.severity === "critical").length,
-      major: findings.filter((f) => f.severity === "major").length,
-      normal: findings.filter((f) => f.severity === "normal").length,
-      minor: findings.filter((f) => f.severity === "minor").length,
-      trivial: findings.filter((f) => f.severity === "trivial").length,
-      total: findings.length,
-    },
-    findings,
-    sourceScreenshot: sourceCapture.screenshot.toString("base64"),
-    targetScreenshot: targetCapture.screenshot.toString("base64"),
-    diffScreenshot: diffImage.toString("base64"),
-    annotatedScreenshot: annotatedScreenshot.toString("base64"),
+router.post("/api/batch", async (req: Request, res: Response) => {
+  const { pairs, viewport } = req.body as {
+    pairs: { sourceUrl: string; targetUrl: string }[];
+    viewport?: { width: number; height: number };
   };
 
-  const html = buildHtmlReport(report);
-  fs.writeFileSync(path.join(reportsDir, `${jobId}.html`), html);
+  if (!pairs || !Array.isArray(pairs) || pairs.length === 0) {
+    res.status(400).json({ error: "pairs array is required and must not be empty" });
+    return;
+  }
 
-  // Save metadata for history listing
-  const meta = {
-    id: jobId,
-    sourceUrl,
-    targetUrl,
-    sourceLocale,
-    targetLocale,
-    viewport: usedViewport,
-    timestamp: report.timestamp,
-    summary: report.summary,
+  if (pairs.length > 100) {
+    res.status(400).json({ error: "Maximum 100 URL pairs per batch" });
+    return;
+  }
+
+  // Validate all URLs
+  for (const pair of pairs) {
+    if (!pair.sourceUrl || !pair.targetUrl) {
+      res.status(400).json({ error: "Each pair must have sourceUrl and targetUrl" });
+      return;
+    }
+    try {
+      new URL(pair.sourceUrl);
+      new URL(pair.targetUrl);
+    } catch {
+      res.status(400).json({
+        error: `Invalid URL format: ${pair.sourceUrl} or ${pair.targetUrl}`,
+      });
+      return;
+    }
+  }
+
+  const vp = viewport || { width: 1280, height: 720 };
+  const batch = batchManager.createBatch(pairs, vp);
+
+  res.json({ batchId: batch.id });
+
+  // Start processing in background
+  batchManager.startBatch(batch.id);
+});
+
+router.get("/api/batch/:id", (req: Request, res: Response) => {
+  const id = req.params.id as string;
+  const meta = batchManager.getBatch(id);
+  if (!meta) {
+    res.status(404).json({ error: "Batch not found" });
+    return;
+  }
+  res.json(meta);
+});
+
+router.get("/api/batches", (_req: Request, res: Response) => {
+  const batches = batchManager.listBatches(10);
+  res.json(batches);
+});
+
+router.get("/api/batch/:id/summary", (req: Request, res: Response) => {
+  const id = req.params.id as string;
+  const meta = batchManager.getBatch(id);
+  if (!meta) {
+    res.status(404).json({ error: "Batch not found" });
+    return;
+  }
+  if (!meta.summaryReportId) {
+    res.status(404).json({ error: "Summary report not yet generated" });
+    return;
+  }
+  const reportPath = path.join(reportsDir, `${meta.summaryReportId}.html`);
+  if (!fs.existsSync(reportPath)) {
+    res.status(404).json({ error: "Summary report file not found" });
+    return;
+  }
+  res.sendFile(reportPath);
+});
+
+// --- Sitemap discovery endpoint ---
+
+router.post("/api/sitemap/discover", async (req: Request, res: Response) => {
+  const { sitemapUrl, sourceLocale, targetLocale } = req.body as {
+    sitemapUrl: string;
+    sourceLocale: string;
+    targetLocale: string;
   };
-  fs.writeFileSync(path.join(reportsDir, `${jobId}.meta.json`), JSON.stringify(meta));
 
-  activeJobs.set(jobId, { status: "complete", progress: 100 });
-}
+  if (!sitemapUrl || !sourceLocale || !targetLocale) {
+    res.status(400).json({
+      error: "sitemapUrl, sourceLocale, and targetLocale are required",
+    });
+    return;
+  }
+
+  try {
+    new URL(sitemapUrl);
+  } catch {
+    res.status(400).json({ error: "Invalid sitemap URL format" });
+    return;
+  }
+
+  try {
+    const pairs = await discoverPairs(sitemapUrl, sourceLocale, targetLocale);
+    res.json({ pairs });
+  } catch (err) {
+    res.status(500).json({
+      error: err instanceof Error ? err.message : "Failed to parse sitemap",
+    });
+  }
+});
 
 export default router;
+export { reportsDir, activeJobs };

@@ -51,41 +51,133 @@
 
   <div class="container">
     <main>
-      <form id="compareForm" class="compare-form">
-        <div class="form-row">
-          <div class="input-group">
-            <label for="sourceUrl">Source URL (original language)</label>
-            <input
-              type="url"
-              id="sourceUrl"
-              name="sourceUrl"
-              placeholder="https://example.com"
-              required
-            >
+      <!-- Tab Bar -->
+      <div class="tab-bar">
+        <button class="tab-btn active" data-tab="single">Single Compare</button>
+        <button class="tab-btn" data-tab="bulk">Bulk Compare</button>
+        <button class="tab-btn" data-tab="sitemap">Sitemap Crawl</button>
+      </div>
+
+      <!-- Single Compare Tab -->
+      <div id="tab-single" class="tab-panel active">
+        <form id="compareForm" class="compare-form">
+          <div class="form-row">
+            <div class="input-group">
+              <label for="sourceUrl">Source URL (original language)</label>
+              <input
+                type="url"
+                id="sourceUrl"
+                name="sourceUrl"
+                placeholder="https://example.com"
+                required
+              >
+            </div>
+            <div class="input-group">
+              <label for="targetUrl">Target URL (localized version)</label>
+              <input
+                type="url"
+                id="targetUrl"
+                name="targetUrl"
+                placeholder="https://example.com/de"
+                required
+              >
+            </div>
           </div>
+          <div class="form-footer">
+            <div class="input-group input-group-viewport">
+              <label for="viewport">Viewport</label>
+              <select id="viewport" name="viewport">
+                <option value="1280x720" selected>Desktop (1280 x 720)</option>
+                <option value="768x1024">Tablet (768 x 1024)</option>
+                <option value="375x667">Mobile (375 x 667)</option>
+              </select>
+            </div>
+            <button type="submit" id="submitBtn">Compare</button>
+          </div>
+        </form>
+      </div>
+
+      <!-- Bulk Compare Tab -->
+      <div id="tab-bulk" class="tab-panel">
+        <div class="compare-form">
           <div class="input-group">
-            <label for="targetUrl">Target URL (localized version)</label>
-            <input
-              type="url"
-              id="targetUrl"
-              name="targetUrl"
-              placeholder="https://example.com/de"
-              required
-            >
+            <label for="bulkPairs">URL Pairs (one pair per line, comma-separated)</label>
+            <textarea
+              id="bulkPairs"
+              rows="8"
+              placeholder="https://example.com/en/about, https://example.com/de/about&#10;https://example.com/en/contact, https://example.com/de/contact&#10;https://example.com/en/pricing, https://example.com/de/pricing"
+            ></textarea>
+          </div>
+          <div class="bulk-upload">
+            <label for="csvUpload" class="upload-btn">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+              Upload CSV
+            </label>
+            <input type="file" id="csvUpload" accept=".csv,.txt" class="hidden">
+            <span id="csvFileName" class="csv-filename"></span>
+          </div>
+          <div class="form-footer">
+            <div class="input-group input-group-viewport">
+              <label for="bulkViewport">Viewport</label>
+              <select id="bulkViewport">
+                <option value="1280x720" selected>Desktop (1280 x 720)</option>
+                <option value="768x1024">Tablet (768 x 1024)</option>
+                <option value="375x667">Mobile (375 x 667)</option>
+              </select>
+            </div>
+            <span id="bulkPairCount" class="pair-count"></span>
+            <button type="button" id="bulkSubmitBtn" class="btn-action">Start Batch</button>
           </div>
         </div>
-        <div class="form-footer">
-          <div class="input-group input-group-viewport">
-            <label for="viewport">Viewport</label>
-            <select id="viewport" name="viewport">
-              <option value="1280x720" selected>Desktop (1280 x 720)</option>
-              <option value="768x1024">Tablet (768 x 1024)</option>
-              <option value="375x667">Mobile (375 x 667)</option>
-            </select>
+      </div>
+
+      <!-- Sitemap Crawl Tab -->
+      <div id="tab-sitemap" class="tab-panel">
+        <div class="compare-form">
+          <div class="input-group">
+            <label for="sitemapUrl">Sitemap URL</label>
+            <input
+              type="url"
+              id="sitemapUrl"
+              placeholder="https://example.com/sitemap.xml"
+            >
           </div>
-          <button type="submit" id="submitBtn">Compare</button>
+          <div class="form-row">
+            <div class="input-group">
+              <label for="sourceLocale">Source Locale</label>
+              <input type="text" id="sourceLocale" placeholder="en" value="en">
+            </div>
+            <div class="input-group">
+              <label for="targetLocale">Target Locale</label>
+              <input type="text" id="targetLocale" placeholder="de">
+            </div>
+          </div>
+          <div class="form-footer">
+            <div class="input-group input-group-viewport">
+              <label for="sitemapViewport">Viewport</label>
+              <select id="sitemapViewport">
+                <option value="1280x720" selected>Desktop (1280 x 720)</option>
+                <option value="768x1024">Tablet (768 x 1024)</option>
+                <option value="375x667">Mobile (375 x 667)</option>
+              </select>
+            </div>
+            <button type="button" id="discoverBtn" class="btn-action">Discover Pairs</button>
+          </div>
+
+          <!-- Discovered Pairs Review -->
+          <div id="sitemapReview" class="sitemap-review hidden">
+            <div class="review-header">
+              <h3 id="discoveredCount">0 pairs discovered</h3>
+              <div class="review-actions">
+                <button type="button" id="selectAllBtn" class="btn-sm">Select All</button>
+                <button type="button" id="deselectAllBtn" class="btn-sm">Deselect All</button>
+              </div>
+            </div>
+            <div id="sitemapPairsList" class="sitemap-pairs"></div>
+            <button type="button" id="sitemapBatchBtn" class="btn-action">Start Batch</button>
+          </div>
         </div>
-      </form>
+      </div>
 
       <details class="usage-section">
         <summary>CLI &amp; API Usage</summary>
@@ -96,19 +188,20 @@
           <table class="usage-table">
             <tr><td><code>--viewport &lt;preset|WxH&gt;</code></td><td>desktop (default), tablet, mobile, or custom WxH</td></tr>
             <tr><td><code>--output &lt;path&gt;</code></td><td>Output directory (default: ./reports)</td></tr>
+            <tr><td><code>--batch &lt;file.csv&gt;</code></td><td>Batch compare from CSV file</td></tr>
+            <tr><td><code>--sitemap &lt;url&gt;</code></td><td>Discover pairs from sitemap</td></tr>
+            <tr><td><code>--source-locale &lt;loc&gt;</code></td><td>Source locale for sitemap (default: en)</td></tr>
+            <tr><td><code>--target-locale &lt;loc&gt;</code></td><td>Target locale for sitemap</td></tr>
           </table>
           <p class="usage-label">Examples</p>
-          <pre><code># Desktop comparison (default)
+          <pre><code># Single comparison
 npx shadowqa https://example.com https://example.com/de
 
-# Mobile viewport
-npx shadowqa https://example.com https://example.com/ja --viewport mobile
+# Batch compare from CSV
+npx shadowqa --batch urls.csv --viewport desktop
 
-# Custom viewport
-npx shadowqa https://example.com https://example.com/fr --viewport 1440x900
-
-# Custom output directory
-npx shadowqa https://example.com https://example.com/es --output ./my-reports</code></pre>
+# Sitemap crawl
+npx shadowqa --sitemap https://example.com/sitemap.xml --source-locale en --target-locale de</code></pre>
           <h3>Development</h3>
           <pre><code># Run CLI directly with tsx (no build needed)
 npm run cli -- https://example.com https://example.com/de
@@ -118,6 +211,7 @@ npm run dev</code></pre>
         </div>
       </details>
 
+      <!-- Single compare progress -->
       <div id="progress" class="progress hidden">
         <div class="steps-indicator" id="stepsIndicator">
           <div class="step" data-step="1">
@@ -146,6 +240,16 @@ npm run dev</code></pre>
         <p class="progress-status" id="progressStatus">Starting...</p>
       </div>
 
+      <!-- Batch progress -->
+      <div id="batchProgress" class="progress hidden">
+        <h3 class="batch-progress-title">Batch Progress</h3>
+        <div class="progress-bar">
+          <div class="progress-fill" id="batchProgressFill"></div>
+        </div>
+        <p class="progress-status" id="batchProgressStatus">Starting batch...</p>
+        <div id="batchJobList" class="batch-job-list"></div>
+      </div>
+
       <div id="error" class="error-card hidden">
         <div class="error-icon">!</div>
         <div class="error-content">
@@ -167,8 +271,20 @@ npm run dev</code></pre>
         </div>
       </div>
 
+      <!-- Batch success -->
+      <div id="batchSuccessCard" class="success-card hidden">
+        <div class="success-icon">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>
+        </div>
+        <h3>Batch complete</h3>
+        <p class="success-meta" id="batchSuccessMeta"></p>
+        <div class="success-actions">
+          <a id="batchSummaryLink" href="#" class="btn-primary">View Summary</a>
+        </div>
+      </div>
+
       <section id="historySection" class="history-section hidden">
-        <h2>Recent Comparisons</h2>
+        <h2>Recent Reports</h2>
         <div id="historyList" class="history-list"></div>
       </section>
     </main>
