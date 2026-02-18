@@ -4,7 +4,7 @@ import path from "path";
 import fs from "fs";
 import { processComparison } from "../compare/process.js";
 import { BatchManager } from "../batch/index.js";
-import { discoverPairs } from "../batch/sitemap.js";
+import { discoverPairs, discoverPairsFromSeparate } from "../batch/sitemap.js";
 import type { CompareRequest } from "../types/index.js";
 
 const router = Router();
@@ -117,6 +117,39 @@ router.delete("/api/reports/:id", (req: Request, res: Response) => {
   res.json({ ok: true });
 });
 
+// Bulk delete reports
+router.delete("/api/reports", (req: Request, res: Response) => {
+  const { ids } = req.body as { ids?: string[] };
+
+  try {
+    let deleted = 0;
+    if (ids && ids.length > 0) {
+      // Delete specific reports
+      for (const id of ids) {
+        const htmlPath = path.join(reportsDir, `${id}.html`);
+        const metaPath = path.join(reportsDir, `${id}.meta.json`);
+        if (fs.existsSync(htmlPath)) { fs.unlinkSync(htmlPath); deleted++; }
+        if (fs.existsSync(metaPath)) fs.unlinkSync(metaPath);
+      }
+    } else {
+      // Delete all reports (not batch files)
+      const files = fs.readdirSync(reportsDir);
+      for (const f of files) {
+        if (f.endsWith(".meta.json") && !f.endsWith(".batch.json")) {
+          const id = f.replace(".meta.json", "");
+          const htmlPath = path.join(reportsDir, `${id}.html`);
+          if (fs.existsSync(htmlPath)) fs.unlinkSync(htmlPath);
+          fs.unlinkSync(path.join(reportsDir, f));
+          deleted++;
+        }
+      }
+    }
+    res.json({ ok: true, deleted });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to delete reports" });
+  }
+});
+
 router.get("/api/reports/:id", (req: Request, res: Response) => {
   const id = req.params.id as string;
   const reportPath = path.join(reportsDir, `${id}.html`);
@@ -186,6 +219,41 @@ router.get("/api/batches", (_req: Request, res: Response) => {
   res.json(batches);
 });
 
+// Delete single batch
+router.delete("/api/batches/:id", (req: Request, res: Response) => {
+  const id = req.params.id as string;
+  const deleted = batchManager.deleteBatch(id);
+  if (!deleted) {
+    res.status(404).json({ error: "Batch not found" });
+    return;
+  }
+  res.json({ ok: true });
+});
+
+// Bulk delete batches
+router.delete("/api/batches", (req: Request, res: Response) => {
+  const { ids } = req.body as { ids?: string[] };
+
+  try {
+    let deleted = 0;
+    if (ids && ids.length > 0) {
+      for (const id of ids) {
+        if (batchManager.deleteBatch(id)) deleted++;
+      }
+    } else {
+      // Delete all batches
+      const files = fs.readdirSync(reportsDir).filter((f) => f.endsWith(".batch.json"));
+      for (const f of files) {
+        const id = f.replace(".batch.json", "");
+        if (batchManager.deleteBatch(id)) deleted++;
+      }
+    }
+    res.json({ ok: true, deleted });
+  } catch {
+    res.status(500).json({ error: "Failed to delete batches" });
+  }
+});
+
 router.get("/api/batch/:id/summary", (req: Request, res: Response) => {
   const id = req.params.id as string;
   const meta = batchManager.getBatch(id);
@@ -208,8 +276,9 @@ router.get("/api/batch/:id/summary", (req: Request, res: Response) => {
 // --- Sitemap discovery endpoint ---
 
 router.post("/api/sitemap/discover", async (req: Request, res: Response) => {
-  const { sitemapUrl, sourceLocale, targetLocale } = req.body as {
+  const { sitemapUrl, targetSitemapUrl, sourceLocale, targetLocale } = req.body as {
     sitemapUrl: string;
+    targetSitemapUrl?: string;
     sourceLocale: string;
     targetLocale: string;
   };
@@ -224,12 +293,26 @@ router.post("/api/sitemap/discover", async (req: Request, res: Response) => {
   try {
     new URL(sitemapUrl);
   } catch {
-    res.status(400).json({ error: "Invalid sitemap URL format" });
+    res.status(400).json({ error: "Invalid source sitemap URL format" });
     return;
   }
 
+  if (targetSitemapUrl) {
+    try {
+      new URL(targetSitemapUrl);
+    } catch {
+      res.status(400).json({ error: "Invalid target sitemap URL format" });
+      return;
+    }
+  }
+
   try {
-    const pairs = await discoverPairs(sitemapUrl, sourceLocale, targetLocale);
+    let pairs;
+    if (targetSitemapUrl) {
+      pairs = await discoverPairsFromSeparate(sitemapUrl, targetSitemapUrl, sourceLocale, targetLocale);
+    } else {
+      pairs = await discoverPairs(sitemapUrl, sourceLocale, targetLocale);
+    }
     res.json({ pairs });
   } catch (err) {
     res.status(500).json({

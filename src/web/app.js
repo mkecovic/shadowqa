@@ -502,14 +502,44 @@ function showBatchSuccess(batchId, batch) {
 
 var discoveredPairs = [];
 
+// Sitemap mode toggle
+document.querySelectorAll('input[name="sitemapMode"]').forEach(function (radio) {
+  radio.addEventListener("change", function () {
+    var singleMode = document.getElementById("sitemapSingleMode");
+    var separateMode = document.getElementById("sitemapSeparateMode");
+    if (this.value === "single") {
+      singleMode.classList.remove("hidden");
+      separateMode.classList.add("hidden");
+    } else {
+      singleMode.classList.add("hidden");
+      separateMode.classList.remove("hidden");
+    }
+  });
+});
+
 discoverBtn.addEventListener("click", async function () {
-  var sitemapUrl = document.getElementById("sitemapUrl").value.trim();
+  var mode = document.querySelector('input[name="sitemapMode"]:checked').value;
   var sourceLocale = document.getElementById("sourceLocale").value.trim();
   var targetLocale = document.getElementById("targetLocale").value.trim();
 
-  if (!sitemapUrl || !sourceLocale || !targetLocale) {
-    showError("Please enter a sitemap URL and both locale codes.");
-    return;
+  var payload = { sourceLocale: sourceLocale, targetLocale: targetLocale };
+
+  if (mode === "single") {
+    var sitemapUrl = document.getElementById("sitemapUrl").value.trim();
+    if (!sitemapUrl || !sourceLocale || !targetLocale) {
+      showError("Please enter a sitemap URL and both locale codes.");
+      return;
+    }
+    payload.sitemapUrl = sitemapUrl;
+  } else {
+    var sourceSitemapUrl = document.getElementById("sourceSitemapUrl").value.trim();
+    var targetSitemapUrl = document.getElementById("targetSitemapUrl").value.trim();
+    if (!sourceSitemapUrl || !targetSitemapUrl || !sourceLocale || !targetLocale) {
+      showError("Please enter both sitemap URLs and both locale codes.");
+      return;
+    }
+    payload.sitemapUrl = sourceSitemapUrl;
+    payload.targetSitemapUrl = targetSitemapUrl;
   }
 
   errorEl.classList.add("hidden");
@@ -521,11 +551,7 @@ discoverBtn.addEventListener("click", async function () {
     var response = await fetch("/api/sitemap/discover", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        sitemapUrl: sitemapUrl,
-        sourceLocale: sourceLocale,
-        targetLocale: targetLocale,
-      }),
+      body: JSON.stringify(payload),
     });
 
     if (!response.ok) {
@@ -639,6 +665,192 @@ sitemapBatchBtn.addEventListener("click", async function () {
 // HISTORY
 // =====================
 
+var historyFilterInput = document.getElementById("historyFilter");
+var historySortSelect = document.getElementById("historySort");
+var historyClearBtn = document.getElementById("historyClearBtn");
+var confirmModal = document.getElementById("confirmModal");
+var confirmTitle = document.getElementById("confirmTitle");
+var confirmMessage = document.getElementById("confirmMessage");
+var confirmCancel = document.getElementById("confirmCancel");
+var confirmOk = document.getElementById("confirmOk");
+
+// Track loaded data for filtering/deletion
+var loadedReports = [];
+var loadedBatches = [];
+
+// Active filters
+var activeTypeFilter = "all";
+var activeViewportFilter = "all";
+
+// --- Confirmation modal ---
+var pendingConfirmResolve = null;
+
+function showConfirmModal(title, message) {
+  confirmTitle.textContent = title;
+  confirmMessage.textContent = message;
+  confirmModal.classList.remove("hidden");
+  return new Promise(function (resolve) {
+    pendingConfirmResolve = resolve;
+  });
+}
+
+confirmCancel.addEventListener("click", function () {
+  confirmModal.classList.add("hidden");
+  if (pendingConfirmResolve) { pendingConfirmResolve(false); pendingConfirmResolve = null; }
+});
+
+confirmOk.addEventListener("click", function () {
+  confirmModal.classList.add("hidden");
+  if (pendingConfirmResolve) { pendingConfirmResolve(true); pendingConfirmResolve = null; }
+});
+
+confirmModal.addEventListener("click", function (e) {
+  if (e.target === confirmModal) {
+    confirmModal.classList.add("hidden");
+    if (pendingConfirmResolve) { pendingConfirmResolve(false); pendingConfirmResolve = null; }
+  }
+});
+
+// --- Filter chips ---
+document.getElementById("typeFilters").addEventListener("click", function (e) {
+  var chip = e.target.closest(".filter-chip");
+  if (!chip) return;
+  activeTypeFilter = chip.dataset.filterType;
+  this.querySelectorAll(".filter-chip").forEach(function (c) { c.classList.remove("active"); });
+  chip.classList.add("active");
+  applyHistoryFilter();
+});
+
+document.getElementById("viewportFilters").addEventListener("click", function (e) {
+  var chip = e.target.closest(".filter-chip");
+  if (!chip) return;
+  activeViewportFilter = chip.dataset.filterViewport;
+  this.querySelectorAll(".filter-chip").forEach(function (c) { c.classList.remove("active"); });
+  chip.classList.add("active");
+  applyHistoryFilter();
+});
+
+// --- Sort ---
+historySortSelect.addEventListener("change", applyHistorySort);
+
+function applyHistorySort() {
+  var sortBy = historySortSelect.value;
+  var items = Array.from(historyList.querySelectorAll(".history-item"));
+  if (items.length === 0) return;
+
+  items.sort(function (a, b) {
+    if (sortBy === "newest") {
+      return (b.dataset.timestamp || "").localeCompare(a.dataset.timestamp || "");
+    } else if (sortBy === "oldest") {
+      return (a.dataset.timestamp || "").localeCompare(b.dataset.timestamp || "");
+    } else if (sortBy === "most-issues") {
+      return parseInt(b.dataset.issues || "0", 10) - parseInt(a.dataset.issues || "0", 10);
+    } else if (sortBy === "fewest-issues") {
+      return parseInt(a.dataset.issues || "0", 10) - parseInt(b.dataset.issues || "0", 10);
+    }
+    return 0;
+  });
+
+  items.forEach(function (item) { historyList.appendChild(item); });
+}
+
+// --- Text filter ---
+historyFilterInput.addEventListener("input", applyHistoryFilter);
+
+function classifyViewport(vp) {
+  if (!vp) return "desktop";
+  var w = vp.width || 0;
+  if (w <= 480) return "mobile";
+  if (w <= 820) return "tablet";
+  return "desktop";
+}
+
+function applyHistoryFilter() {
+  var query = historyFilterInput.value.trim().toLowerCase();
+  var items = historyList.querySelectorAll(".history-item");
+  var visibleCount = 0;
+  var hasActiveFilter = query.length > 0 || activeTypeFilter !== "all" || activeViewportFilter !== "all";
+
+  items.forEach(function (item) {
+    var matchesText = !query || (item.textContent || "").toLowerCase().includes(query);
+    var matchesType = activeTypeFilter === "all" || item.dataset.itemType === activeTypeFilter;
+    var matchesViewport = activeViewportFilter === "all" || item.dataset.viewport === activeViewportFilter;
+
+    if (matchesText && matchesType && matchesViewport) {
+      item.style.display = "";
+      visibleCount++;
+    } else {
+      item.style.display = "none";
+    }
+  });
+
+  // Update clear button label
+  if (hasActiveFilter) {
+    historyClearBtn.textContent = "Clear Filtered (" + visibleCount + ")";
+  } else {
+    historyClearBtn.textContent = "Clear All";
+  }
+}
+
+// --- Clear button ---
+historyClearBtn.addEventListener("click", async function () {
+  var query = historyFilterInput.value.trim().toLowerCase();
+  var isFiltered = query.length > 0 || activeTypeFilter !== "all" || activeViewportFilter !== "all";
+
+  // Gather IDs to delete
+  var reportIds = [];
+  var batchIds = [];
+
+  if (isFiltered) {
+    // Only delete visible items
+    var items = historyList.querySelectorAll(".history-item");
+    items.forEach(function (item) {
+      if (item.style.display !== "none") {
+        var id = item.dataset.itemId;
+        var type = item.dataset.itemType;
+        if (type === "report") reportIds.push(id);
+        else if (type === "batch") batchIds.push(id);
+      }
+    });
+  } else {
+    // Delete all
+    reportIds = loadedReports.map(function (r) { return r.id; });
+    batchIds = loadedBatches.map(function (b) { return b.id; });
+  }
+
+  var totalToDelete = reportIds.length + batchIds.length;
+  if (totalToDelete === 0) return;
+
+  var label = isFiltered ? "filtered" : "all";
+  var confirmed = await showConfirmModal(
+    "Delete " + totalToDelete + " item" + (totalToDelete !== 1 ? "s" : "") + "?",
+    "This will permanently delete " + label + " reports and batches. This action cannot be undone."
+  );
+
+  if (!confirmed) return;
+
+  // Perform deletions
+  var promises = [];
+  if (reportIds.length > 0) {
+    promises.push(fetch("/api/reports", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ids: isFiltered ? reportIds : undefined }),
+    }));
+  }
+  if (batchIds.length > 0) {
+    promises.push(fetch("/api/batches", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ids: isFiltered ? batchIds : undefined }),
+    }));
+  }
+
+  await Promise.all(promises);
+  historyFilterInput.value = "";
+  loadHistory();
+});
+
 async function loadHistory() {
   try {
     var reports = [];
@@ -650,7 +862,10 @@ async function loadHistory() {
     var batchesRes = await fetch("/api/batches");
     if (batchesRes.ok) batches = await batchesRes.json();
 
-    if ((!reports || reports.length === 0) && (!batches || batches.length === 0)) {
+    loadedReports = reports || [];
+    loadedBatches = batches || [];
+
+    if (loadedReports.length === 0 && loadedBatches.length === 0) {
       historySection.classList.add("hidden");
       return;
     }
@@ -658,18 +873,20 @@ async function loadHistory() {
     historyList.innerHTML = "";
 
     // Render batches
-    if (batches && batches.length > 0) {
-      batches.forEach(function (b) {
+    if (loadedBatches.length > 0) {
+      loadedBatches.forEach(function (b) {
         var time = formatTimeAgo(b.createdAt);
         var item = document.createElement("div");
         item.className = "history-item";
+        item.dataset.itemId = b.id;
+        item.dataset.itemType = "batch";
+        item.dataset.viewport = classifyViewport(b.viewport);
+        item.dataset.timestamp = b.createdAt || "";
+        item.dataset.issues = String(b.failedJobs || 0);
 
         var link = document.createElement("a");
         link.className = "history-link";
         link.href = b.summaryReportId ? "/api/reports/" + b.summaryReportId : "#";
-
-        var totalFindings = 0;
-        // We don't have finding counts in batch meta directly, just job counts
 
         link.innerHTML =
           '<div class="history-urls">' +
@@ -682,14 +899,25 @@ async function loadHistory() {
           '</div></div>' +
           '<span class="history-time">' + escapeHtml(time) + '</span>';
 
+        var deleteBtn = document.createElement("button");
+        deleteBtn.className = "history-delete";
+        deleteBtn.title = "Delete batch";
+        deleteBtn.setAttribute("aria-label", "Delete batch");
+        deleteBtn.innerHTML = "&times;";
+        deleteBtn.addEventListener("click", function (e) {
+          e.stopPropagation();
+          deleteBatch(b.id);
+        });
+
         item.appendChild(link);
+        item.appendChild(deleteBtn);
         historyList.appendChild(item);
       });
     }
 
     // Render individual reports
-    if (reports && reports.length > 0) {
-      reports.forEach(function (r) {
+    if (loadedReports.length > 0) {
+      loadedReports.forEach(function (r) {
         var total = r.summary ? r.summary.total : 0;
         var time = formatTimeAgo(r.timestamp);
         var sourceHost = shortenUrl(r.sourceUrl);
@@ -698,6 +926,11 @@ async function loadHistory() {
 
         var item = document.createElement("div");
         item.className = "history-item";
+        item.dataset.itemId = r.id;
+        item.dataset.itemType = "report";
+        item.dataset.viewport = classifyViewport(r.viewport);
+        item.dataset.timestamp = r.timestamp || "";
+        item.dataset.issues = String(total);
 
         var link = document.createElement("a");
         link.className = "history-link";
@@ -736,6 +969,8 @@ async function loadHistory() {
     }
 
     historySection.classList.remove("hidden");
+    applyHistorySort();
+    applyHistoryFilter();
   } catch (e) {
     // Silently fail
   }
@@ -744,6 +979,17 @@ async function loadHistory() {
 async function deleteReport(id) {
   try {
     var response = await fetch("/api/reports/" + id, { method: "DELETE" });
+    if (response.ok) {
+      loadHistory();
+    }
+  } catch (e) {
+    // Silently fail
+  }
+}
+
+async function deleteBatch(id) {
+  try {
+    var response = await fetch("/api/batches/" + id, { method: "DELETE" });
     if (response.ok) {
       loadHistory();
     }

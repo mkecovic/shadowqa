@@ -134,13 +134,44 @@
       <!-- Sitemap Crawl Tab -->
       <div id="tab-sitemap" class="tab-panel">
         <div class="compare-form">
-          <div class="input-group">
-            <label for="sitemapUrl">Sitemap URL</label>
-            <input
-              type="url"
-              id="sitemapUrl"
-              placeholder="https://example.com/sitemap.xml"
-            >
+          <div class="radio-group">
+            <span class="radio-group-label">Sitemap Mode</span>
+            <label class="radio-label">
+              <input type="radio" name="sitemapMode" value="single" checked>
+              Multilingual (one file)
+            </label>
+            <label class="radio-label">
+              <input type="radio" name="sitemapMode" value="separate">
+              Separate per Language
+            </label>
+          </div>
+          <div id="sitemapSingleMode">
+            <div class="input-group">
+              <label for="sitemapUrl">Sitemap URL</label>
+              <input
+                type="url"
+                id="sitemapUrl"
+                placeholder="https://example.com/sitemap.xml"
+              >
+            </div>
+          </div>
+          <div id="sitemapSeparateMode" class="hidden">
+            <div class="input-group">
+              <label for="sourceSitemapUrl">Source Sitemap URL</label>
+              <input
+                type="url"
+                id="sourceSitemapUrl"
+                placeholder="https://example.com/sitemap-en.xml"
+              >
+            </div>
+            <div class="input-group">
+              <label for="targetSitemapUrl">Target Sitemap URL</label>
+              <input
+                type="url"
+                id="targetSitemapUrl"
+                placeholder="https://example.com/sitemap-de.xml"
+              >
+            </div>
           </div>
           <div class="form-row">
             <div class="input-group">
@@ -190,6 +221,7 @@
             <tr><td><code>--output &lt;path&gt;</code></td><td>Output directory (default: ./reports)</td></tr>
             <tr><td><code>--batch &lt;file.csv&gt;</code></td><td>Batch compare from CSV file</td></tr>
             <tr><td><code>--sitemap &lt;url&gt;</code></td><td>Discover pairs from sitemap</td></tr>
+            <tr><td><code>--target-sitemap &lt;url&gt;</code></td><td>Target language sitemap (separate sitemaps mode)</td></tr>
             <tr><td><code>--source-locale &lt;loc&gt;</code></td><td>Source locale for sitemap (default: en)</td></tr>
             <tr><td><code>--target-locale &lt;loc&gt;</code></td><td>Target locale for sitemap</td></tr>
           </table>
@@ -285,8 +317,51 @@ npm run dev</code></pre>
 
       <section id="historySection" class="history-section hidden">
         <h2>Recent Reports</h2>
+        <div class="history-toolbar">
+          <div class="history-toolbar-row">
+            <input type="text" id="historyFilter" class="history-filter-input" placeholder="Search reports...">
+            <select id="historySort" class="history-sort-select">
+              <option value="newest">Newest first</option>
+              <option value="oldest">Oldest first</option>
+              <option value="most-issues">Most issues</option>
+              <option value="fewest-issues">Fewest issues</option>
+            </select>
+            <button type="button" id="historyClearBtn" class="btn-clear" title="Clear reports">Clear All</button>
+          </div>
+          <div class="history-toolbar-row">
+            <div class="filter-group">
+              <span class="filter-group-label">Type</span>
+              <div class="filter-chips" id="typeFilters">
+                <button class="filter-chip active" data-filter-type="all">All</button>
+                <button class="filter-chip" data-filter-type="report">Single</button>
+                <button class="filter-chip" data-filter-type="batch">Batch</button>
+              </div>
+            </div>
+            <div class="filter-group">
+              <span class="filter-group-label">Viewport</span>
+              <div class="filter-chips" id="viewportFilters">
+                <button class="filter-chip active" data-filter-viewport="all">All</button>
+                <button class="filter-chip" data-filter-viewport="desktop">Desktop</button>
+                <button class="filter-chip" data-filter-viewport="tablet">Tablet</button>
+                <button class="filter-chip" data-filter-viewport="mobile">Mobile</button>
+              </div>
+            </div>
+          </div>
+        </div>
         <div id="historyList" class="history-list"></div>
       </section>
+
+      <!-- Confirmation Modal -->
+      <div id="confirmModal" class="modal-overlay hidden">
+        <div class="modal-dialog">
+          <h3 id="confirmTitle">Confirm</h3>
+          <p id="confirmMessage">Are you sure?</p>
+          <div class="modal-actions">
+            <button type="button" id="confirmCancel" class="btn-modal-cancel">Cancel</button>
+            <button type="button" id="confirmOk" class="btn-modal-confirm">Delete</button>
+          </div>
+        </div>
+      </div>
     </main>
 
     <footer>

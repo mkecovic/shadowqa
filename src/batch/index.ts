@@ -228,6 +228,29 @@ export class BatchManager {
     };
   }
 
+  deleteBatch(batchId: string): boolean {
+    // Remove from memory
+    this.batches.delete(batchId);
+
+    // Remove batch meta file
+    const metaPath = path.join(this.reportsDir, `${batchId}.batch.json`);
+    if (!fs.existsSync(metaPath)) return false;
+
+    // Read meta to find summary report
+    try {
+      const meta = JSON.parse(fs.readFileSync(metaPath, "utf-8")) as BatchMeta;
+      if (meta.summaryReportId) {
+        const summaryPath = path.join(this.reportsDir, `${meta.summaryReportId}.html`);
+        if (fs.existsSync(summaryPath)) fs.unlinkSync(summaryPath);
+      }
+    } catch {
+      // Continue with deletion even if meta parse fails
+    }
+
+    fs.unlinkSync(metaPath);
+    return true;
+  }
+
   private saveBatchMeta(batch: Batch): void {
     if (!fs.existsSync(this.reportsDir)) {
       fs.mkdirSync(this.reportsDir, { recursive: true });
