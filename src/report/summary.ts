@@ -364,9 +364,9 @@ tbody tr:hover { background: var(--glass-bg); }
   font-size: 0.7rem;
   font-weight: 600;
 }
-.status-complete { background: rgba(5,150,105,0.1); color: var(--success); }
-.status-error { background: rgba(220,38,38,0.1); color: var(--error); }
-.status-pending { background: rgba(100,116,139,0.1); color: var(--text-light); }
+.status-badge.status-complete { background: rgba(5,150,105,0.1); color: var(--success); }
+.status-badge.status-error { background: rgba(220,38,38,0.1); color: var(--error); }
+.status-badge.status-pending { background: rgba(100,116,139,0.1); color: var(--text-light); }
 .action-cell { text-align: center; }
 .report-link {
   color: var(--primary);

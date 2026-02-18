@@ -222,3 +222,122 @@ export async function discoverPairs(
     `Checked ${entries.length} URLs using hreflang tags and URL pattern matching.`
   );
 }
+
+/**
+ * Discover pairs from two separate sitemaps (one per language).
+ * Matches URLs by normalizing out the locale segment and pairing by path.
+ */
+export async function discoverPairsFromSeparate(
+  sourceSitemapUrl: string,
+  targetSitemapUrl: string,
+  sourceLocale: string,
+  targetLocale: string
+): Promise<DiscoveredPair[]> {
+  const [sourceEntries, targetEntries] = await Promise.all([
+    parseSitemap(sourceSitemapUrl),
+    parseSitemap(targetSitemapUrl),
+  ]);
+
+  if (sourceEntries.length === 0) {
+    throw new Error("No URLs found in source sitemap");
+  }
+  if (targetEntries.length === 0) {
+    throw new Error("No URLs found in target sitemap");
+  }
+
+  // Build a map of normalized paths → target URLs
+  const targetByKey = new Map<string, string>();
+  for (const entry of targetEntries) {
+    const key = normalizeUrlKey(entry.loc, targetLocale);
+    if (key) targetByKey.set(key, entry.loc);
+  }
+
+  const pairs: DiscoveredPair[] = [];
+  for (const entry of sourceEntries) {
+    const key = normalizeUrlKey(entry.loc, sourceLocale);
+    if (key && targetByKey.has(key)) {
+      pairs.push({
+        sourceUrl: entry.loc,
+        targetUrl: targetByKey.get(key)!,
+        sourceLocale,
+        targetLocale,
+      });
+    }
+  }
+
+  if (pairs.length > 0) {
+    return pairs;
+  }
+
+  // Fallback: if locale stripping didn't help, try direct path matching
+  // (source and target sitemaps may have identical paths without locale prefixes)
+  const targetByPath = new Map<string, string>();
+  for (const entry of targetEntries) {
+    try {
+      const u = new URL(entry.loc);
+      targetByPath.set(u.pathname, entry.loc);
+    } catch { continue; }
+  }
+
+  for (const entry of sourceEntries) {
+    try {
+      const u = new URL(entry.loc);
+      const targetUrl = targetByPath.get(u.pathname);
+      if (targetUrl && targetUrl !== entry.loc) {
+        pairs.push({
+          sourceUrl: entry.loc,
+          targetUrl,
+          sourceLocale,
+          targetLocale,
+        });
+      }
+    } catch { continue; }
+  }
+
+  if (pairs.length > 0) {
+    return pairs;
+  }
+
+  throw new Error(
+    `No matching page pairs found between source sitemap (${sourceEntries.length} URLs) ` +
+    `and target sitemap (${targetEntries.length} URLs). ` +
+    `URLs could not be matched by path pattern.`
+  );
+}
+
+/**
+ * Normalize a URL by stripping out the locale segment to produce a match key.
+ * Handles path prefix (/en/...), subdomain (en.example.com), and query param (?lang=en).
+ */
+function normalizeUrlKey(url: string, locale: string): string | null {
+  try {
+    const u = new URL(url);
+    const lc = locale.toLowerCase();
+
+    // Path prefix: /en/page → /page
+    const segments = u.pathname.split("/").filter(Boolean);
+    if (segments.length > 0 && segments[0].toLowerCase() === lc) {
+      return u.origin + "/" + segments.slice(1).join("/");
+    }
+
+    // Subdomain: en.example.com → example.com/path
+    const hostParts = u.hostname.split(".");
+    if (hostParts.length >= 2 && hostParts[0].toLowerCase() === lc) {
+      return hostParts.slice(1).join(".") + u.pathname;
+    }
+
+    // Query param: ?lang=en → stripped
+    const lang = u.searchParams.get("lang") || u.searchParams.get("locale");
+    if (lang && lang.toLowerCase() === lc) {
+      const clean = new URL(url);
+      clean.searchParams.delete("lang");
+      clean.searchParams.delete("locale");
+      return clean.toString();
+    }
+
+    // No locale found in URL — use full path as key (for same-domain different-sitemap setups)
+    return u.origin + u.pathname;
+  } catch {
+    return null;
+  }
+}

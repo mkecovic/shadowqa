@@ -5,7 +5,7 @@ import { closeBrowser } from "./capture/index.js";
 import { processComparison } from "./compare/process.js";
 import { AsyncQueue } from "./batch/queue.js";
 import { buildBatchSummaryReport } from "./report/summary.js";
-import { discoverPairs } from "./batch/sitemap.js";
+import { discoverPairs, discoverPairsFromSeparate } from "./batch/sitemap.js";
 import type { BatchMeta } from "./batch/types.js";
 
 const VIEWPORT_PRESETS: Record<string, { width: number; height: number }> = {
@@ -17,7 +17,7 @@ const VIEWPORT_PRESETS: Record<string, { width: number; height: number }> = {
 type Mode =
   | { type: "single"; sourceUrl: string; targetUrl: string }
   | { type: "batch"; csvPath: string }
-  | { type: "sitemap"; sitemapUrl: string; sourceLocale: string; targetLocale: string };
+  | { type: "sitemap"; sitemapUrl: string; targetSitemapUrl?: string; sourceLocale: string; targetLocale: string };
 
 interface CliArgs {
   mode: Mode;
@@ -33,6 +33,7 @@ Usage:
   shadowqa <sourceUrl> <targetUrl> [options]
   shadowqa --batch <file.csv> [options]
   shadowqa --sitemap <url> --source-locale <loc> --target-locale <loc> [options]
+  shadowqa --sitemap <src-url> --target-sitemap <tgt-url> --target-locale <loc> [options]
 
 Options:
   --viewport <preset|WxH>   Viewport size (default: desktop)
@@ -40,7 +41,8 @@ Options:
                              Custom: WxH (e.g. 1440x900)
   --output <path>            Output directory (default: ./reports)
   --batch <file.csv>         Batch compare from CSV file
-  --sitemap <url>            Discover pairs from sitemap XML
+  --sitemap <url>            Discover pairs from sitemap XML (source sitemap when using --target-sitemap)
+  --target-sitemap <url>     Target language sitemap (for separate sitemaps per language)
   --source-locale <locale>   Source locale for sitemap (default: en)
   --target-locale <locale>   Target locale for sitemap
   --help                     Show this help message
@@ -50,6 +52,7 @@ Examples:
   shadowqa https://example.com https://example.com/ja --viewport mobile
   shadowqa --batch urls.csv --viewport desktop
   shadowqa --sitemap https://example.com/sitemap.xml --source-locale en --target-locale de
+  shadowqa --sitemap https://example.com/sitemap-en.xml --target-sitemap https://example.com/sitemap-de.xml --target-locale de
 `);
 }
 
@@ -65,6 +68,7 @@ function parseArgs(argv: string[]): CliArgs {
   let output = "./reports";
   let batchPath: string | null = null;
   let sitemapUrl: string | null = null;
+  let targetSitemapUrl: string | null = null;
   let sourceLocale = "en";
   let targetLocale: string | null = null;
   const positional: string[] = [];
@@ -107,6 +111,13 @@ function parseArgs(argv: string[]): CliArgs {
         process.exit(1);
       }
       sitemapUrl = args[i];
+    } else if (args[i] === "--target-sitemap") {
+      i++;
+      if (!args[i]) {
+        console.error("Error: --target-sitemap requires a URL");
+        process.exit(1);
+      }
+      targetSitemapUrl = args[i];
     } else if (args[i] === "--source-locale") {
       i++;
       if (!args[i]) {
@@ -143,7 +154,7 @@ function parseArgs(argv: string[]): CliArgs {
       process.exit(1);
     }
     return {
-      mode: { type: "sitemap", sitemapUrl, sourceLocale, targetLocale },
+      mode: { type: "sitemap", sitemapUrl, targetSitemapUrl: targetSitemapUrl || undefined, sourceLocale, targetLocale },
       viewport,
       output,
     };
@@ -409,15 +420,28 @@ async function main(): Promise<void> {
       }
       await runBatch(pairs, viewport, outputDir);
     } else if (mode.type === "sitemap") {
-      console.log(`Discovering pairs from sitemap: ${mode.sitemapUrl}`);
+      if (mode.targetSitemapUrl) {
+        console.log(`Discovering pairs from separate sitemaps:`);
+        console.log(`  Source: ${mode.sitemapUrl}`);
+        console.log(`  Target: ${mode.targetSitemapUrl}`);
+      } else {
+        console.log(`Discovering pairs from sitemap: ${mode.sitemapUrl}`);
+      }
       console.log(`Locales: ${mode.sourceLocale} -> ${mode.targetLocale}`);
       console.log();
 
-      const pairs = await discoverPairs(
-        mode.sitemapUrl,
-        mode.sourceLocale,
-        mode.targetLocale
-      );
+      const pairs = mode.targetSitemapUrl
+        ? await discoverPairsFromSeparate(
+            mode.sitemapUrl,
+            mode.targetSitemapUrl,
+            mode.sourceLocale,
+            mode.targetLocale
+          )
+        : await discoverPairs(
+            mode.sitemapUrl,
+            mode.sourceLocale,
+            mode.targetLocale
+          );
 
       console.log(`Found ${pairs.length} URL pairs`);
       console.log();
