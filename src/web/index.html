@@ -85,12 +85,32 @@
           </div>
           <div class="form-footer">
             <div class="input-group input-group-viewport">
-              <label for="viewport">Viewport</label>
-              <select id="viewport" name="viewport">
-                <option value="1280x720" selected>Desktop (1280 x 720)</option>
-                <option value="768x1024">Tablet (768 x 1024)</option>
-                <option value="375x667">Mobile (375 x 667)</option>
-              </select>
+              <label>Viewport</label>
+              <div class="vp-dropdown" id="viewport" data-value="1280x720">
+                <button type="button" class="vp-dropdown-trigger">
+                  <svg class="vp-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+                  <span class="vp-value">Desktop</span>
+                  <span class="vp-dims">1280 x 720</span>
+                  <svg class="vp-arrow" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+                </button>
+                <div class="vp-dropdown-menu">
+                  <button type="button" class="vp-dropdown-option active" data-value="1280x720" data-label="Desktop" data-dims="1280 x 720">
+                    <svg class="vp-opt-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+                    <span class="vp-opt-label">Desktop</span><span class="vp-opt-dims">1280 x 720</span>
+                    <svg class="vp-opt-check" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                  </button>
+                  <button type="button" class="vp-dropdown-option" data-value="768x1024" data-label="Tablet" data-dims="768 x 1024">
+                    <svg class="vp-opt-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="2" width="16" height="20" rx="2"/><line x1="10" y1="18" x2="14" y2="18"/></svg>
+                    <span class="vp-opt-label">Tablet</span><span class="vp-opt-dims">768 x 1024</span>
+                    <svg class="vp-opt-check" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                  </button>
+                  <button type="button" class="vp-dropdown-option" data-value="375x667" data-label="Mobile" data-dims="375 x 667">
+                    <svg class="vp-opt-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="10" y1="18" x2="14" y2="18"/></svg>
+                    <span class="vp-opt-label">Mobile</span><span class="vp-opt-dims">375 x 667</span>
+                    <svg class="vp-opt-check" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                  </button>
+                </div>
+              </div>
             </div>
             <button type="submit" id="submitBtn">Compare</button>
           </div>
@@ -118,12 +138,32 @@
           </div>
           <div class="form-footer">
             <div class="input-group input-group-viewport">
-              <label for="bulkViewport">Viewport</label>
-              <select id="bulkViewport">
-                <option value="1280x720" selected>Desktop (1280 x 720)</option>
-                <option value="768x1024">Tablet (768 x 1024)</option>
-                <option value="375x667">Mobile (375 x 667)</option>
-              </select>
+              <label>Viewport</label>
+              <div class="vp-dropdown" id="bulkViewport" data-value="1280x720">
+                <button type="button" class="vp-dropdown-trigger">
+                  <svg class="vp-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+                  <span class="vp-value">Desktop</span>
+                  <span class="vp-dims">1280 x 720</span>
+                  <svg class="vp-arrow" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+                </button>
+                <div class="vp-dropdown-menu">
+                  <button type="button" class="vp-dropdown-option active" data-value="1280x720" data-label="Desktop" data-dims="1280 x 720">
+                    <svg class="vp-opt-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+                    <span class="vp-opt-label">Desktop</span><span class="vp-opt-dims">1280 x 720</span>
+                    <svg class="vp-opt-check" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                  </button>
+                  <button type="button" class="vp-dropdown-option" data-value="768x1024" data-label="Tablet" data-dims="768 x 1024">
+                    <svg class="vp-opt-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="2" width="16" height="20" rx="2"/><line x1="10" y1="18" x2="14" y2="18"/></svg>
+                    <span class="vp-opt-label">Tablet</span><span class="vp-opt-dims">768 x 1024</span>
+                    <svg class="vp-opt-check" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                  </button>
+                  <button type="button" class="vp-dropdown-option" data-value="375x667" data-label="Mobile" data-dims="375 x 667">
+                    <svg class="vp-opt-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="10" y1="18" x2="14" y2="18"/></svg>
+                    <span class="vp-opt-label">Mobile</span><span class="vp-opt-dims">375 x 667</span>
+                    <svg class="vp-opt-check" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                  </button>
+                </div>
+              </div>
             </div>
             <span id="bulkPairCount" class="pair-count"></span>
             <button type="button" id="bulkSubmitBtn" class="btn-action">Start Batch</button>
@@ -185,12 +225,32 @@
           </div>
           <div class="form-footer">
             <div class="input-group input-group-viewport">
-              <label for="sitemapViewport">Viewport</label>
-              <select id="sitemapViewport">
-                <option value="1280x720" selected>Desktop (1280 x 720)</option>
-                <option value="768x1024">Tablet (768 x 1024)</option>
-                <option value="375x667">Mobile (375 x 667)</option>
-              </select>
+              <label>Viewport</label>
+              <div class="vp-dropdown" id="sitemapViewport" data-value="1280x720">
+                <button type="button" class="vp-dropdown-trigger">
+                  <svg class="vp-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+                  <span class="vp-value">Desktop</span>
+                  <span class="vp-dims">1280 x 720</span>
+                  <svg class="vp-arrow" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+                </button>
+                <div class="vp-dropdown-menu">
+                  <button type="button" class="vp-dropdown-option active" data-value="1280x720" data-label="Desktop" data-dims="1280 x 720">
+                    <svg class="vp-opt-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+                    <span class="vp-opt-label">Desktop</span><span class="vp-opt-dims">1280 x 720</span>
+                    <svg class="vp-opt-check" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                  </button>
+                  <button type="button" class="vp-dropdown-option" data-value="768x1024" data-label="Tablet" data-dims="768 x 1024">
+                    <svg class="vp-opt-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="2" width="16" height="20" rx="2"/><line x1="10" y1="18" x2="14" y2="18"/></svg>
+                    <span class="vp-opt-label">Tablet</span><span class="vp-opt-dims">768 x 1024</span>
+                    <svg class="vp-opt-check" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                  </button>
+                  <button type="button" class="vp-dropdown-option" data-value="375x667" data-label="Mobile" data-dims="375 x 667">
+                    <svg class="vp-opt-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="10" y1="18" x2="14" y2="18"/></svg>
+                    <span class="vp-opt-label">Mobile</span><span class="vp-opt-dims">375 x 667</span>
+                    <svg class="vp-opt-check" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                  </button>
+                </div>
+              </div>
             </div>
             <button type="button" id="discoverBtn" class="btn-action">Discover Pairs</button>
           </div>
@@ -320,12 +380,31 @@ npm run dev</code></pre>
         <div class="history-toolbar">
           <div class="history-toolbar-row">
             <input type="text" id="historyFilter" class="history-filter-input" placeholder="Search reports...">
-            <select id="historySort" class="history-sort-select">
-              <option value="newest">Newest first</option>
-              <option value="oldest">Oldest first</option>
-              <option value="most-issues">Most issues</option>
-              <option value="fewest-issues">Fewest issues</option>
-            </select>
+            <div class="sort-dropdown" id="sortDropdown">
+              <button type="button" class="sort-dropdown-trigger" id="sortTrigger">
+                <span class="sort-label">Sort:</span>
+                <span class="sort-value" id="sortValue">Newest</span>
+                <svg class="sort-arrow" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+              </button>
+              <div class="sort-dropdown-menu" id="sortMenu">
+                <button class="sort-dropdown-option active" data-sort="newest">
+                  <svg class="sort-check" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                  Newest first
+                </button>
+                <button class="sort-dropdown-option" data-sort="oldest">
+                  <svg class="sort-check" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                  Oldest first
+                </button>
+                <button class="sort-dropdown-option" data-sort="most-issues">
+                  <svg class="sort-check" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                  Most issues
+                </button>
+                <button class="sort-dropdown-option" data-sort="fewest-issues">
+                  <svg class="sort-check" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                  Fewest issues
+                </button>
+              </div>
+            </div>
             <button type="button" id="historyClearBtn" class="btn-clear" title="Clear reports">Clear All</button>
           </div>
           <div class="history-toolbar-row">
