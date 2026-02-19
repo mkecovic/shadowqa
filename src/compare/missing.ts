@@ -1,5 +1,5 @@
 import type { PageCapture, RawFinding } from "../types/index.js";
-import { flattenDOM, truncate } from "./utils.js";
+import { flattenDOM, truncate, findFuzzyMatch } from "./utils.js";
 
 const INTERACTIVE_TAGS = new Set([
   "a", "button", "input", "select", "textarea", "form", "details", "summary",
@@ -27,6 +27,11 @@ export function compareMissing(
   for (const [selector, node] of sourceMap) {
     if (!node.visible) continue;
     if (targetMap.has(selector)) continue;
+
+    // Exact selector miss — check if the element moved to a different selector
+    // (common when localized pages add RTL wrappers or locale-specific containers).
+    // Only suppress if we can confidently identify it by a stable attribute.
+    if (findFuzzyMatch(node, targetNodes)) continue;
 
     const tag = node.tag.toLowerCase();
     const isInteractive = INTERACTIVE_TAGS.has(tag);

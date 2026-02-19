@@ -16,6 +16,15 @@ export function buildHtmlReport(report: ComparisonReport): string {
     categoryCounts.set(cat, report.findings.filter((f) => f.category === cat).length);
   }
 
+  // Count pre-existing (source-issues) findings by axe impact level.
+  // The source field is formatted as "<impact>: N element(s)" by the accessibility module.
+  const preExistingCritical = report.findings.filter(
+    (f) => f.category === "source-issues" && f.source.startsWith("critical:")
+  ).length;
+  const preExistingSerious = report.findings.filter(
+    (f) => f.category === "source-issues" && f.source.startsWith("serious:")
+  ).length;
+
   const localeParts: string[] = [];
   if (report.sourceLocale) localeParts.push(escapeHtml(report.sourceLocale));
   if (report.targetLocale) localeParts.push(escapeHtml(report.targetLocale));
@@ -61,6 +70,15 @@ export function buildHtmlReport(report: ComparisonReport): string {
       }).join("\n      ")}
       ${summaryCard("Total", report.summary.total, "total", false)}
     </div>
+    ${(preExistingCritical > 0 || preExistingSerious > 0) ? `
+    <div class="preexisting-notice">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+      <span>
+        Pre-existing accessibility issues on both pages (not caused by localization):
+        ${preExistingCritical > 0 ? `<strong>${preExistingCritical} critical</strong>` : ""}${preExistingCritical > 0 && preExistingSerious > 0 ? ", " : ""}${preExistingSerious > 0 ? `<strong>${preExistingSerious} serious</strong>` : ""}.
+        These are shown under <em>Source Issues</em> and should be fixed in the source page.
+      </span>
+    </div>` : ""}
   </section>
 
   <section class="filters" id="filters">
@@ -900,7 +918,26 @@ function getReportCSS(): string {
       display: flex;
       gap: 1rem;
       flex-wrap: wrap;
-      margin-bottom: 1.5rem;
+      margin-bottom: 1rem;
+    }
+
+    .preexisting-notice {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.5rem;
+      padding: 0.6rem 0.9rem;
+      background: color-mix(in srgb, var(--cat-source-issues) 12%, transparent);
+      border: 1px solid color-mix(in srgb, var(--cat-source-issues) 35%, transparent);
+      border-radius: 6px;
+      font-size: 0.85rem;
+      color: var(--text);
+      margin-top: 0.75rem;
+    }
+
+    .preexisting-notice svg {
+      flex-shrink: 0;
+      margin-top: 2px;
+      color: var(--cat-source-issues);
     }
 
     .summary-card {

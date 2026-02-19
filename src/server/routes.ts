@@ -12,9 +12,11 @@ import type { CompareRequest } from "../types/index.js";
 
 function fetchUrl(url: string): Promise<{ body: string; contentType: string | null }> {
   return new Promise((resolve, reject) => {
-    const isHttps = url.startsWith("https");
+    const parsed = new URL(url);
+    const isHttps = parsed.protocol === "https:";
+    const isLocalhost = parsed.hostname === "localhost" || parsed.hostname === "127.0.0.1";
     const client = isHttps ? https : http;
-    const options = isHttps ? { rejectUnauthorized: false } : {};
+    const options = isHttps && isLocalhost ? { rejectUnauthorized: false } : {};
     const req = client.get(url, options, (res) => {
       // Follow redirects
       if (res.statusCode && res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
@@ -57,6 +59,9 @@ const activeJobs = new Map<
   { status: string; progress: number; error?: string }
 >();
 
+const MAX_CONCURRENT_SINGLE_JOBS = 5;
+let activeSingleJobCount = 0;
+
 // Batch manager (singleton)
 const batchManager = new BatchManager(reportsDir);
 
@@ -83,8 +88,14 @@ router.post("/api/compare", async (req: Request, res: Response) => {
     return;
   }
 
+  if (activeSingleJobCount >= MAX_CONCURRENT_SINGLE_JOBS) {
+    res.status(429).json({ error: "Too many concurrent comparisons. Please wait for an existing job to finish." });
+    return;
+  }
+
   const jobId = crypto.randomUUID();
   activeJobs.set(jobId, { status: "capturing", progress: 0 });
+  activeSingleJobCount++;
 
   res.json({ jobId });
 
@@ -104,6 +115,8 @@ router.post("/api/compare", async (req: Request, res: Response) => {
       progress: 0,
       error: err instanceof Error ? err.message : String(err),
     });
+  }).finally(() => {
+    activeSingleJobCount--;
   });
 });
 
@@ -119,10 +132,13 @@ router.get("/api/status/:jobId", (req: Request, res: Response) => {
 
 // --- Report endpoints ---
 
-router.get("/api/reports", (_req: Request, res: Response) => {
+router.get("/api/reports", (req: Request, res: Response) => {
   try {
-    const files = fs.readdirSync(reportsDir).filter((f) => f.endsWith(".meta.json"));
-    const reports = files
+    const limit = Math.min(parseInt(String(req.query.limit ?? "10"), 10) || 10, 100);
+    const offset = parseInt(String(req.query.offset ?? "0"), 10) || 0;
+
+    const files = fs.readdirSync(reportsDir).filter((f) => f.endsWith(".meta.json") && !f.endsWith(".batch.json"));
+    const allReports = files
       .map((f) => {
         try {
           const raw = fs.readFileSync(path.join(reportsDir, f), "utf-8");
@@ -132,11 +148,12 @@ router.get("/api/reports", (_req: Request, res: Response) => {
         }
       })
       .filter(Boolean)
-      .sort((a: any, b: any) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
-      .slice(0, 10);
-    res.json(reports);
+      .sort((a: any, b: any) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+
+    const page = allReports.slice(offset, offset + limit);
+    res.json({ reports: page, total: allReports.length, offset, limit });
   } catch {
-    res.json([]);
+    res.json({ reports: [], total: 0, offset: 0, limit: 20 });
   }
 });
 

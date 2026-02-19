@@ -740,6 +740,9 @@ var confirmOk = document.getElementById("confirmOk");
 // Track loaded data for filtering/deletion
 var loadedReports = [];
 var loadedBatches = [];
+var reportOffset = 0;
+var reportLimit = 10;
+var reportTotal = 0;
 
 // Active filters
 var activeTypeFilter = "all";
@@ -910,12 +913,11 @@ historyClearBtn.addEventListener("click", async function () {
       }
     });
   } else {
-    // Delete all
-    reportIds = loadedReports.map(function (r) { return r.id; });
+    // Delete all — use totals for the confirmation count (backend handles full deletion)
     batchIds = loadedBatches.map(function (b) { return b.id; });
   }
 
-  var totalToDelete = reportIds.length + batchIds.length;
+  var totalToDelete = isFiltered ? (reportIds.length + batchIds.length) : (reportTotal + loadedBatches.length);
   if (totalToDelete === 0) return;
 
   var label = isFiltered ? "filtered" : "all";
@@ -928,14 +930,14 @@ historyClearBtn.addEventListener("click", async function () {
 
   // Perform deletions
   var promises = [];
-  if (reportIds.length > 0) {
+  if (!isFiltered || reportIds.length > 0) {
     promises.push(fetch("/api/reports", {
       method: "DELETE",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ ids: isFiltered ? reportIds : undefined }),
     }));
   }
-  if (batchIds.length > 0) {
+  if (!isFiltered || batchIds.length > 0) {
     promises.push(fetch("/api/batches", {
       method: "DELETE",
       headers: { "Content-Type": "application/json" },
@@ -948,146 +950,188 @@ historyClearBtn.addEventListener("click", async function () {
   loadHistory();
 });
 
+function renderBatchItem(b) {
+  var time = formatTimeAgo(b.createdAt);
+  var item = document.createElement("div");
+  item.className = "history-item";
+  item.dataset.itemId = b.id;
+  item.dataset.itemType = "batch";
+  item.dataset.viewport = classifyViewport(b.viewport);
+  item.dataset.timestamp = b.createdAt || "";
+  item.dataset.issues = String(b.failedJobs || 0);
+
+  var link = document.createElement("a");
+  link.className = "history-link";
+  link.href = b.summaryReportId ? "/api/reports/" + b.summaryReportId : "#";
+  link.innerHTML =
+    '<div class="history-urls">' +
+    '<span class="history-url">Batch: ' + b.totalJobs + ' pages</span>' +
+    '<div class="history-meta">' +
+    '<span class="history-count ' + (b.failedJobs > 0 ? "has-issues" : "clean") + '">' +
+    b.completedJobs + '/' + b.totalJobs + ' complete' +
+    '</span>' +
+    '<span class="history-viewport">' + b.viewport.width + ' x ' + b.viewport.height + '</span>' +
+    '</div></div>' +
+    '<span class="history-time">' + escapeHtml(time) + '</span>';
+
+  var deleteBtn = document.createElement("button");
+  deleteBtn.className = "history-delete";
+  deleteBtn.title = "Delete batch";
+  deleteBtn.setAttribute("aria-label", "Delete batch");
+  deleteBtn.innerHTML = "&times;";
+  deleteBtn.addEventListener("click", function (e) {
+    e.stopPropagation();
+    deleteBatch(b.id);
+  });
+
+  item.appendChild(link);
+  item.appendChild(deleteBtn);
+  return item;
+}
+
+function renderReportItem(r) {
+  var total = r.summary ? r.summary.total : 0;
+  var time = formatTimeAgo(r.timestamp);
+  var isCodeDiff = r.type === "code-diff";
+  var sourceHost = isCodeDiff ? (r.sourceLabel || "Source") : shortenUrl(r.sourceUrl);
+  var targetHost = isCodeDiff ? (r.targetLabel || "Target") : shortenUrl(r.targetUrl);
+  var vpLabel = r.viewport ? r.viewport.width + " x " + r.viewport.height : "";
+
+  var item = document.createElement("div");
+  item.className = "history-item";
+  item.dataset.itemId = r.id;
+  item.dataset.itemType = "report";
+  item.dataset.viewport = classifyViewport(r.viewport);
+  item.dataset.timestamp = r.timestamp || "";
+  item.dataset.issues = String(total);
+
+  var link = document.createElement("a");
+  link.className = "history-link";
+  link.href = "/api/reports/" + r.id;
+
+  var metaHtml;
+  if (isCodeDiff) {
+    metaHtml =
+      '<div class="history-urls">' +
+      '<span class="history-url">' +
+      '<span class="history-viewport" style="margin-right:0.4rem">Code Diff</span>' +
+      escapeHtml(sourceHost) +
+      ' <span class="arrow">\u2192</span> ' +
+      escapeHtml(targetHost) +
+      "</span>" +
+      '<div class="history-meta">' +
+      (r.language ? '<span class="history-viewport">' + escapeHtml(r.language) + "</span>" : "") +
+      "</div></div>" +
+      '<span class="history-time">' + escapeHtml(time) + '</span>';
+  } else {
+    metaHtml =
+      '<div class="history-urls">' +
+      '<span class="history-url">' +
+      escapeHtml(sourceHost) +
+      ' <span class="arrow">\u2192</span> ' +
+      escapeHtml(targetHost) +
+      "</span>" +
+      '<div class="history-meta">' +
+      '<span class="history-count ' +
+      (total > 0 ? "has-issues" : "clean") +
+      '">' +
+      total + " issue" + (total !== 1 ? "s" : "") +
+      "</span>" +
+      (vpLabel ? '<span class="history-viewport">' + escapeHtml(vpLabel) + "</span>" : "") +
+      "</div></div>" +
+      '<span class="history-time">' + escapeHtml(time) + '</span>';
+  }
+
+  link.innerHTML = metaHtml;
+
+  var deleteBtn = document.createElement("button");
+  deleteBtn.className = "history-delete";
+  deleteBtn.title = "Delete report";
+  deleteBtn.setAttribute("aria-label", "Delete report");
+  deleteBtn.innerHTML = "&times;";
+  deleteBtn.addEventListener("click", function (e) {
+    e.stopPropagation();
+    deleteReport(r.id);
+  });
+
+  item.appendChild(link);
+  item.appendChild(deleteBtn);
+  return item;
+}
+
+function updateLoadMoreButton() {
+  var btn = document.getElementById("loadMoreBtn");
+  if (!btn) return;
+  var hasMore = reportOffset < reportTotal;
+  btn.classList.toggle("hidden", !hasMore);
+  if (hasMore) {
+    var remaining = reportTotal - reportOffset;
+    btn.textContent = "Load " + Math.min(remaining, reportLimit) + " more reports (" + remaining + " remaining)";
+  }
+}
+
+async function loadMoreReports() {
+  var btn = document.getElementById("loadMoreBtn");
+  if (btn) { btn.disabled = true; btn.textContent = "Loading…"; }
+  try {
+    var res = await fetch("/api/reports?limit=" + reportLimit + "&offset=" + reportOffset);
+    if (!res.ok) return;
+    var data = await res.json();
+    var newReports = data.reports || [];
+    reportOffset += newReports.length;
+    reportTotal = data.total || reportTotal;
+    loadedReports = loadedReports.concat(newReports);
+
+    newReports.forEach(function (r) {
+      historyList.appendChild(renderReportItem(r));
+    });
+
+    applyHistorySort();
+    applyHistoryFilter();
+    updateLoadMoreButton();
+  } catch (e) {
+    // Silently fail
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
 async function loadHistory() {
   try {
-    var reports = [];
-    var batches = [];
-
-    var reportsRes = await fetch("/api/reports");
-    if (reportsRes.ok) reports = await reportsRes.json();
-
+    // Fetch batches first so we know how many slots they consume from the page limit
     var batchesRes = await fetch("/api/batches");
-    if (batchesRes.ok) batches = await batchesRes.json();
-
-    loadedReports = reports || [];
+    var batches = batchesRes.ok ? await batchesRes.json() : [];
     loadedBatches = batches || [];
+
+    // Reserve slots for batches so the combined first page stays at ~reportLimit items
+    var effectiveReportLimit = Math.max(1, reportLimit - loadedBatches.length);
+    var reportsRes = await fetch("/api/reports?limit=" + effectiveReportLimit + "&offset=0");
+    var reportsData = reportsRes.ok ? await reportsRes.json() : { reports: [], total: 0, offset: 0, limit: effectiveReportLimit };
+
+    loadedReports = reportsData.reports || [];
+    reportOffset = loadedReports.length;
+    reportTotal = reportsData.total || 0;
 
     if (loadedReports.length === 0 && loadedBatches.length === 0) {
       historySection.classList.add("hidden");
+      updateLoadMoreButton();
       return;
     }
 
     historyList.innerHTML = "";
 
-    // Render batches
-    if (loadedBatches.length > 0) {
-      loadedBatches.forEach(function (b) {
-        var time = formatTimeAgo(b.createdAt);
-        var item = document.createElement("div");
-        item.className = "history-item";
-        item.dataset.itemId = b.id;
-        item.dataset.itemType = "batch";
-        item.dataset.viewport = classifyViewport(b.viewport);
-        item.dataset.timestamp = b.createdAt || "";
-        item.dataset.issues = String(b.failedJobs || 0);
+    loadedBatches.forEach(function (b) {
+      historyList.appendChild(renderBatchItem(b));
+    });
 
-        var link = document.createElement("a");
-        link.className = "history-link";
-        link.href = b.summaryReportId ? "/api/reports/" + b.summaryReportId : "#";
-
-        link.innerHTML =
-          '<div class="history-urls">' +
-          '<span class="history-url">Batch: ' + b.totalJobs + ' pages</span>' +
-          '<div class="history-meta">' +
-          '<span class="history-count ' + (b.failedJobs > 0 ? "has-issues" : "clean") + '">' +
-          b.completedJobs + '/' + b.totalJobs + ' complete' +
-          '</span>' +
-          '<span class="history-viewport">' + b.viewport.width + ' x ' + b.viewport.height + '</span>' +
-          '</div></div>' +
-          '<span class="history-time">' + escapeHtml(time) + '</span>';
-
-        var deleteBtn = document.createElement("button");
-        deleteBtn.className = "history-delete";
-        deleteBtn.title = "Delete batch";
-        deleteBtn.setAttribute("aria-label", "Delete batch");
-        deleteBtn.innerHTML = "&times;";
-        deleteBtn.addEventListener("click", function (e) {
-          e.stopPropagation();
-          deleteBatch(b.id);
-        });
-
-        item.appendChild(link);
-        item.appendChild(deleteBtn);
-        historyList.appendChild(item);
-      });
-    }
-
-    // Render individual reports
-    if (loadedReports.length > 0) {
-      loadedReports.forEach(function (r) {
-        var total = r.summary ? r.summary.total : 0;
-        var time = formatTimeAgo(r.timestamp);
-        var isCodeDiff = r.type === "code-diff";
-        var sourceHost = isCodeDiff ? (r.sourceLabel || "Source") : shortenUrl(r.sourceUrl);
-        var targetHost = isCodeDiff ? (r.targetLabel || "Target") : shortenUrl(r.targetUrl);
-        var vpLabel = r.viewport ? r.viewport.width + " x " + r.viewport.height : "";
-
-        var item = document.createElement("div");
-        item.className = "history-item";
-        item.dataset.itemId = r.id;
-        item.dataset.itemType = "report";
-        item.dataset.viewport = classifyViewport(r.viewport);
-        item.dataset.timestamp = r.timestamp || "";
-        item.dataset.issues = String(total);
-
-        var link = document.createElement("a");
-        link.className = "history-link";
-        link.href = "/api/reports/" + r.id;
-
-        var metaHtml;
-        if (isCodeDiff) {
-          metaHtml =
-            '<div class="history-urls">' +
-            '<span class="history-url">' +
-            '<span class="history-viewport" style="margin-right:0.4rem">Code Diff</span>' +
-            escapeHtml(sourceHost) +
-            ' <span class="arrow">\u2192</span> ' +
-            escapeHtml(targetHost) +
-            "</span>" +
-            '<div class="history-meta">' +
-            (r.language ? '<span class="history-viewport">' + escapeHtml(r.language) + "</span>" : "") +
-            "</div></div>" +
-            '<span class="history-time">' + escapeHtml(time) + '</span>';
-        } else {
-          metaHtml =
-            '<div class="history-urls">' +
-            '<span class="history-url">' +
-            escapeHtml(sourceHost) +
-            ' <span class="arrow">\u2192</span> ' +
-            escapeHtml(targetHost) +
-            "</span>" +
-            '<div class="history-meta">' +
-            '<span class="history-count ' +
-            (total > 0 ? "has-issues" : "clean") +
-            '">' +
-            total + " issue" + (total !== 1 ? "s" : "") +
-            "</span>" +
-            (vpLabel ? '<span class="history-viewport">' + escapeHtml(vpLabel) + "</span>" : "") +
-            "</div></div>" +
-            '<span class="history-time">' + escapeHtml(time) + '</span>';
-        }
-
-        link.innerHTML = metaHtml;
-
-        var deleteBtn = document.createElement("button");
-        deleteBtn.className = "history-delete";
-        deleteBtn.title = "Delete report";
-        deleteBtn.setAttribute("aria-label", "Delete report");
-        deleteBtn.innerHTML = "&times;";
-        deleteBtn.addEventListener("click", function (e) {
-          e.stopPropagation();
-          deleteReport(r.id);
-        });
-
-        item.appendChild(link);
-        item.appendChild(deleteBtn);
-        historyList.appendChild(item);
-      });
-    }
+    loadedReports.forEach(function (r) {
+      historyList.appendChild(renderReportItem(r));
+    });
 
     historySection.classList.remove("hidden");
     applyHistorySort();
     applyHistoryFilter();
+    updateLoadMoreButton();
   } catch (e) {
     // Silently fail
   }
@@ -1263,6 +1307,12 @@ document.getElementById("codeCompareBtn").addEventListener("click", async functi
     btn.textContent = "Compare";
   }
 });
+
+// Wire up load more button
+var loadMoreBtn = document.getElementById("loadMoreBtn");
+if (loadMoreBtn) {
+  loadMoreBtn.addEventListener("click", loadMoreReports);
+}
 
 // Load history on page init
 loadHistory();

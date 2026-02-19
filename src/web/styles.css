@@ -806,6 +806,33 @@ button[type="submit"]:disabled,
   gap: 0.6rem;
 }
 
+.load-more-row {
+  display: flex;
+  justify-content: center;
+  margin-top: 1rem;
+}
+
+.btn-load-more {
+  padding: 0.5rem 1.4rem;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--glass-bg);
+  color: var(--text-light);
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.btn-load-more:hover:not(:disabled) {
+  background: var(--card-bg);
+  color: var(--text);
+}
+
+.btn-load-more:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
 .history-item {
   display: flex;
   align-items: center;

@@ -10,6 +10,7 @@ export class BatchManager {
   private queue: AsyncQueue;
   private reportsDir: string;
   private onSummaryReady?: (batchId: string) => void;
+  private saveDebounceTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
   constructor(reportsDir: string, concurrency = 3) {
     this.reportsDir = reportsDir;
@@ -50,7 +51,7 @@ export class BatchManager {
     if (!batch) throw new Error(`Batch ${batchId} not found`);
 
     batch.status = "running";
-    this.saveBatchMeta(batch);
+    this.saveBatchMeta(batch, true);
 
     const jobPromises = batch.jobs.map((job) =>
       this.queue.add(() => this.processJob(batch, job))
@@ -72,7 +73,7 @@ export class BatchManager {
           console.error(`Failed to generate summary for batch ${batchId}:`, err);
         }
 
-        this.saveBatchMeta(batch);
+        this.saveBatchMeta(batch, true);
 
         if (this.onSummaryReady) {
           this.onSummaryReady(batchId);
@@ -138,7 +139,7 @@ export class BatchManager {
   private async processJob(batch: Batch, job: BatchJob): Promise<void> {
     job.status = "running";
     job.progress = 0;
-    this.saveBatchMeta(batch);
+    this.saveBatchMeta(batch, true);
 
     try {
       const result = await processComparison(
@@ -148,7 +149,7 @@ export class BatchManager {
         this.reportsDir,
         (_status, progress) => {
           job.progress = progress;
-          this.saveBatchMeta(batch);
+          this.saveBatchMeta(batch); // debounced — fine for progress ticks
         }
       );
 
@@ -164,7 +165,7 @@ export class BatchManager {
       );
     }
 
-    this.saveBatchMeta(batch);
+    this.saveBatchMeta(batch, true); // job reached terminal state — save immediately
   }
 
   private async generateSummary(batch: Batch): Promise<void> {
@@ -251,7 +252,29 @@ export class BatchManager {
     return true;
   }
 
-  private saveBatchMeta(batch: Batch): void {
+  private saveBatchMeta(batch: Batch, immediate = false): void {
+    if (immediate) {
+      const existing = this.saveDebounceTimers.get(batch.id);
+      if (existing) {
+        clearTimeout(existing);
+        this.saveDebounceTimers.delete(batch.id);
+      }
+      this.writeBatchMeta(batch);
+      return;
+    }
+
+    if (!this.saveDebounceTimers.has(batch.id)) {
+      this.saveDebounceTimers.set(
+        batch.id,
+        setTimeout(() => {
+          this.saveDebounceTimers.delete(batch.id);
+          this.writeBatchMeta(batch);
+        }, 500)
+      );
+    }
+  }
+
+  private writeBatchMeta(batch: Batch): void {
     if (!fs.existsSync(this.reportsDir)) {
       fs.mkdirSync(this.reportsDir, { recursive: true });
     }

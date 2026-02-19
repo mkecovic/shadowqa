@@ -1,4 +1,4 @@
-import type { PageCapture, RawFinding, AxeViolation } from "../types/index.js";
+import type { PageCapture, RawFinding, AxeViolation, DOMNode, BoundingBox } from "../types/index.js";
 
 export function compareAccessibility(
   source: PageCapture,
@@ -8,6 +8,7 @@ export function compareAccessibility(
 
   const sourceViolationMap = indexViolations(source.accessibility.violations);
   const targetViolationMap = indexViolations(target.accessibility.violations);
+  const targetBBoxIndex = buildBoundingBoxIndex(target.dom);
 
   // New violations in target that weren't in source — regressions introduced by localization
   for (const [key, targetViolation] of targetViolationMap) {
@@ -24,6 +25,7 @@ export function compareAccessibility(
           },
           source: "No violation",
           target: `${targetViolation.impact}: ${targetViolation.help}`,
+          boundingBox: targetBBoxIndex.get(selector),
           metadata: {
             type: "new-violation",
             ruleId: targetViolation.id,
@@ -45,16 +47,18 @@ export function compareAccessibility(
     ) {
       const newNodeCount =
         targetViolation.nodes.length - sourceViolation.nodes.length;
+      const firstSelector = targetViolation.nodes[0]?.target.join(" ") || "unknown";
       findings.push({
         category: "functional",
         title: `A11y violation spread: ${targetViolation.help}`,
         description: `The "${targetViolation.id}" violation now affects ${targetViolation.nodes.length} elements (was ${sourceViolation.nodes.length}). ${newNodeCount} new element(s) affected in the localized version.`,
         element: {
-          selector: targetViolation.nodes[0]?.target.join(" ") || "unknown",
+          selector: firstSelector,
           tag: extractTagFromHtml(targetViolation.nodes[0]?.html || ""),
         },
         source: `${sourceViolation.nodes.length} element(s) affected`,
         target: `${targetViolation.nodes.length} element(s) affected`,
+        boundingBox: targetBBoxIndex.get(firstSelector),
         metadata: {
           type: "violation-spread",
           ruleId: targetViolation.id,
@@ -90,6 +94,7 @@ export function compareAccessibility(
             },
             source: "Rule passing",
             target: `${targetViolation.impact}: ${targetViolation.help}`,
+            boundingBox: targetBBoxIndex.get(selector),
             metadata: {
               type: "regression",
               ruleId: targetViolation.id,
@@ -112,16 +117,18 @@ export function compareAccessibility(
     if (targetViolation.nodes.length > sourceViolation.nodes.length) continue;
 
     // Same rule, same or fewer nodes — this is a pre-existing issue
+    const preExistingSelector = targetViolation.nodes[0]?.target.join(" ") || "unknown";
     findings.push({
       category: "source-issues",
       title: `Pre-existing a11y issue: ${targetViolation.help}`,
       description: `${targetViolation.description}. This issue exists on both the source and target pages — it is not caused by localization.`,
       element: {
-        selector: targetViolation.nodes[0]?.target.join(" ") || "unknown",
+        selector: preExistingSelector,
         tag: extractTagFromHtml(targetViolation.nodes[0]?.html || ""),
       },
       source: `${targetViolation.impact}: ${sourceViolation.nodes.length} element(s)`,
       target: `${targetViolation.impact}: ${targetViolation.nodes.length} element(s)`,
+      boundingBox: targetBBoxIndex.get(preExistingSelector),
       metadata: {
         type: "pre-existing",
         ruleId: targetViolation.id,
@@ -141,6 +148,18 @@ function indexViolations(
   for (const v of violations) {
     map.set(v.id, v);
   }
+  return map;
+}
+
+function buildBoundingBoxIndex(nodes: DOMNode[]): Map<string, BoundingBox> {
+  const map = new Map<string, BoundingBox>();
+  const walk = (node: DOMNode) => {
+    if (node.boundingBox && node.selector) {
+      map.set(node.selector, node.boundingBox);
+    }
+    for (const child of node.children) walk(child);
+  };
+  for (const node of nodes) walk(node);
   return map;
 }
 

@@ -1,5 +1,5 @@
 import type { PageCapture, RawFinding } from "../types/index.js";
-import { flattenDOM } from "./utils.js";
+import { flattenDOM, truncate } from "./utils.js";
 
 const INTERACTIVE_TAGS = new Set([
   "a", "button", "input", "select", "textarea", "form", "details", "summary",
@@ -61,11 +61,19 @@ export function compareFunctionality(
         const linkDomain = getDomain(sourceHref);
 
         if (linkDomain && linkDomain === sourcePageDomain && sourceHref === targetHref) {
-          // Same-domain link unchanged on target — may need localization
+          // Only flag if the link's visible text was translated — this distinguishes
+          // a localized CTA (text changed, URL forgotten) from shared nav/footer links
+          // (text same, URL expected to stay the same). Flagging every unchanged nav
+          // link produces massive noise with near-zero signal.
+          const srcText = sourceNode.textContent.trim();
+          const tgtText = targetNode.textContent.trim();
+          const textWasTranslated = srcText.length > 0 && tgtText.length > 0 && srcText !== tgtText;
+          if (!textWasTranslated) continue;
+
           findings.push({
             category: "functional",
             title: `Link not localized on <a>`,
-            description: `The link at "${selector}" still points to the source domain (${sourcePageDomain}) on the localized page`,
+            description: `The link at "${selector}" still points to the source domain (${sourcePageDomain}) on the localized page, but its label was translated from "${truncate(srcText, 40)}" to "${truncate(tgtText, 40)}"`,
             element: { selector, tag: "a" },
             source: `href="${sourceHref}"`,
             target: `href="${targetHref}" (unchanged)`,
