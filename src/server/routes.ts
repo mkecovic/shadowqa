@@ -2,10 +2,46 @@ import { Router, type Request, type Response } from "express";
 import crypto from "crypto";
 import path from "path";
 import fs from "fs";
+import http from "http";
+import https from "https";
 import { processComparison } from "../compare/process.js";
 import { BatchManager } from "../batch/index.js";
 import { discoverPairs, discoverPairsFromSeparate } from "../batch/sitemap.js";
+import { buildCodeDiffReport } from "../report/codeDiff.js";
 import type { CompareRequest } from "../types/index.js";
+
+function fetchUrl(url: string): Promise<{ body: string; contentType: string | null }> {
+  return new Promise((resolve, reject) => {
+    const isHttps = url.startsWith("https");
+    const client = isHttps ? https : http;
+    const options = isHttps ? { rejectUnauthorized: false } : {};
+    const req = client.get(url, options, (res) => {
+      // Follow redirects
+      if (res.statusCode && res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+        fetchUrl(res.headers.location).then(resolve).catch(reject);
+        return;
+      }
+      if (res.statusCode && res.statusCode >= 400) {
+        reject(new Error(`HTTP ${res.statusCode}`));
+        return;
+      }
+      const chunks: Buffer[] = [];
+      res.on("data", (chunk: Buffer) => chunks.push(chunk));
+      res.on("end", () => {
+        resolve({
+          body: Buffer.concat(chunks).toString("utf-8"),
+          contentType: res.headers["content-type"] || null,
+        });
+      });
+      res.on("error", reject);
+    });
+    req.on("error", reject);
+    req.setTimeout(15000, () => {
+      req.destroy();
+      reject(new Error("Request timed out"));
+    });
+  });
+}
 
 const router = Router();
 const reportsDir = path.resolve(process.cwd(), "reports");
@@ -319,6 +355,104 @@ router.post("/api/sitemap/discover", async (req: Request, res: Response) => {
       error: err instanceof Error ? err.message : "Failed to parse sitemap",
     });
   }
+});
+
+// --- Code compare endpoints ---
+
+router.post("/api/code-compare/fetch", async (req: Request, res: Response) => {
+  const { sourceUrl, targetUrl } = req.body as {
+    sourceUrl: string;
+    targetUrl: string;
+  };
+
+  if (!sourceUrl || !targetUrl) {
+    res.status(400).json({ error: "Both sourceUrl and targetUrl are required" });
+    return;
+  }
+
+  try {
+    new URL(sourceUrl);
+    new URL(targetUrl);
+  } catch {
+    res.status(400).json({ error: "Invalid URL format" });
+    return;
+  }
+
+  try {
+    const [sourceResult, targetResult] = await Promise.all([
+      fetchUrl(sourceUrl),
+      fetchUrl(targetUrl),
+    ]);
+
+    const sourceCode = sourceResult.body;
+    const targetCode = targetResult.body;
+
+    // Auto-detect language from Content-Type or URL extension
+    const detectLang = (url: string, contentType: string | null): string => {
+      const ct = (contentType || "").toLowerCase();
+      if (ct.includes("json")) return "JSON";
+      if (ct.includes("javascript")) return "JavaScript";
+      if (ct.includes("css")) return "CSS";
+      if (ct.includes("html") || ct.includes("xml")) {
+        if (ct.includes("xml")) return "XML";
+        return "HTML";
+      }
+
+      const ext = url.split("?")[0].split(".").pop()?.toLowerCase();
+      const extMap: Record<string, string> = {
+        json: "JSON", js: "JavaScript", ts: "JavaScript",
+        css: "CSS", html: "HTML", htm: "HTML",
+        xml: "XML", svg: "XML", txt: "Plain Text",
+        md: "Plain Text", yaml: "Plain Text", yml: "Plain Text",
+      };
+      return extMap[ext || ""] || "Plain Text";
+    };
+
+    const language = detectLang(sourceUrl, sourceResult.contentType);
+
+    res.json({ sourceCode, targetCode, language });
+  } catch (err) {
+    res.status(500).json({
+      error: err instanceof Error ? err.message : "Failed to fetch URLs",
+    });
+  }
+});
+
+router.post("/api/code-compare", (req: Request, res: Response) => {
+  const { sourceCode, targetCode, language, sourceLabel, targetLabel } = req.body as {
+    sourceCode: string;
+    targetCode: string;
+    language?: string;
+    sourceLabel?: string;
+    targetLabel?: string;
+  };
+
+  if (sourceCode == null || targetCode == null) {
+    res.status(400).json({ error: "Both sourceCode and targetCode are required" });
+    return;
+  }
+
+  const reportId = crypto.randomUUID();
+  const lang = language || "Plain Text";
+  const srcLabel = sourceLabel || "Source";
+  const tgtLabel = targetLabel || "Target";
+
+  const html = buildCodeDiffReport(reportId, sourceCode, targetCode, lang, srcLabel, tgtLabel);
+
+  fs.writeFileSync(path.join(reportsDir, `${reportId}.html`), html);
+  fs.writeFileSync(
+    path.join(reportsDir, `${reportId}.meta.json`),
+    JSON.stringify({
+      id: reportId,
+      type: "code-diff",
+      language: lang,
+      sourceLabel: srcLabel,
+      targetLabel: tgtLabel,
+      timestamp: new Date().toISOString(),
+    })
+  );
+
+  res.json({ reportId });
 });
 
 export default router;

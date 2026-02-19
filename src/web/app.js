@@ -1017,8 +1017,9 @@ async function loadHistory() {
       loadedReports.forEach(function (r) {
         var total = r.summary ? r.summary.total : 0;
         var time = formatTimeAgo(r.timestamp);
-        var sourceHost = shortenUrl(r.sourceUrl);
-        var targetHost = shortenUrl(r.targetUrl);
+        var isCodeDiff = r.type === "code-diff";
+        var sourceHost = isCodeDiff ? (r.sourceLabel || "Source") : shortenUrl(r.sourceUrl);
+        var targetHost = isCodeDiff ? (r.targetLabel || "Target") : shortenUrl(r.targetUrl);
         var vpLabel = r.viewport ? r.viewport.width + " x " + r.viewport.height : "";
 
         var item = document.createElement("div");
@@ -1032,22 +1033,41 @@ async function loadHistory() {
         var link = document.createElement("a");
         link.className = "history-link";
         link.href = "/api/reports/" + r.id;
-        link.innerHTML =
-          '<div class="history-urls">' +
-          '<span class="history-url">' +
-          escapeHtml(sourceHost) +
-          ' <span class="arrow">\u2192</span> ' +
-          escapeHtml(targetHost) +
-          "</span>" +
-          '<div class="history-meta">' +
-          '<span class="history-count ' +
-          (total > 0 ? "has-issues" : "clean") +
-          '">' +
-          total + " issue" + (total !== 1 ? "s" : "") +
-          "</span>" +
-          (vpLabel ? '<span class="history-viewport">' + escapeHtml(vpLabel) + "</span>" : "") +
-          "</div></div>" +
-          '<span class="history-time">' + escapeHtml(time) + '</span>';
+
+        var metaHtml;
+        if (isCodeDiff) {
+          metaHtml =
+            '<div class="history-urls">' +
+            '<span class="history-url">' +
+            '<span class="history-viewport" style="margin-right:0.4rem">Code Diff</span>' +
+            escapeHtml(sourceHost) +
+            ' <span class="arrow">\u2192</span> ' +
+            escapeHtml(targetHost) +
+            "</span>" +
+            '<div class="history-meta">' +
+            (r.language ? '<span class="history-viewport">' + escapeHtml(r.language) + "</span>" : "") +
+            "</div></div>" +
+            '<span class="history-time">' + escapeHtml(time) + '</span>';
+        } else {
+          metaHtml =
+            '<div class="history-urls">' +
+            '<span class="history-url">' +
+            escapeHtml(sourceHost) +
+            ' <span class="arrow">\u2192</span> ' +
+            escapeHtml(targetHost) +
+            "</span>" +
+            '<div class="history-meta">' +
+            '<span class="history-count ' +
+            (total > 0 ? "has-issues" : "clean") +
+            '">' +
+            total + " issue" + (total !== 1 ? "s" : "") +
+            "</span>" +
+            (vpLabel ? '<span class="history-viewport">' + escapeHtml(vpLabel) + "</span>" : "") +
+            "</div></div>" +
+            '<span class="history-time">' + escapeHtml(time) + '</span>';
+        }
+
+        link.innerHTML = metaHtml;
 
         var deleteBtn = document.createElement("button");
         deleteBtn.className = "history-delete";
@@ -1094,6 +1114,155 @@ async function deleteBatch(id) {
     // Silently fail
   }
 }
+
+// =====================
+// CODE COMPARE
+// =====================
+
+var codeSourceFileContent = null;
+var codeTargetFileContent = null;
+var codeSourceFileName = "";
+var codeTargetFileName = "";
+
+// Mode toggle
+document.querySelectorAll('input[name="codeMode"]').forEach(function (radio) {
+  radio.addEventListener("change", function () {
+    var pasteMode = document.getElementById("codePasteMode");
+    var urlMode = document.getElementById("codeUrlMode");
+    var fileMode = document.getElementById("codeFileMode");
+    pasteMode.classList.add("hidden");
+    urlMode.classList.add("hidden");
+    fileMode.classList.add("hidden");
+    if (this.value === "paste") pasteMode.classList.remove("hidden");
+    else if (this.value === "url") urlMode.classList.remove("hidden");
+    else if (this.value === "file") fileMode.classList.remove("hidden");
+  });
+});
+
+// File upload handlers
+document.getElementById("codeSourceFile").addEventListener("change", function (e) {
+  var file = e.target.files[0];
+  if (!file) return;
+  codeSourceFileName = file.name;
+  document.getElementById("codeSourceFileName").textContent = file.name;
+  var reader = new FileReader();
+  reader.onload = function (evt) {
+    codeSourceFileContent = evt.target.result;
+  };
+  reader.readAsText(file);
+});
+
+document.getElementById("codeTargetFile").addEventListener("change", function (e) {
+  var file = e.target.files[0];
+  if (!file) return;
+  codeTargetFileName = file.name;
+  document.getElementById("codeTargetFileName").textContent = file.name;
+  var reader = new FileReader();
+  reader.onload = function (evt) {
+    codeTargetFileContent = evt.target.result;
+  };
+  reader.readAsText(file);
+});
+
+function detectLanguageFromFilename(name) {
+  var ext = (name || "").split(".").pop().toLowerCase();
+  var map = {
+    js: "JavaScript", ts: "JavaScript", jsx: "JavaScript", tsx: "JavaScript",
+    json: "JSON", html: "HTML", htm: "HTML",
+    xml: "XML", svg: "XML", css: "CSS",
+    md: "Plain Text", txt: "Plain Text",
+    yaml: "Plain Text", yml: "Plain Text",
+    py: "Plain Text", rb: "Plain Text", go: "Plain Text",
+    java: "Plain Text", c: "Plain Text", cpp: "Plain Text",
+    rs: "Plain Text", sh: "Plain Text",
+  };
+  return map[ext] || "Plain Text";
+}
+
+// Compare button
+document.getElementById("codeCompareBtn").addEventListener("click", async function () {
+  var mode = document.querySelector('input[name="codeMode"]:checked').value;
+  var btn = this;
+  var sourceCode, targetCode, sourceLabel, targetLabel, language;
+
+  btn.disabled = true;
+  btn.textContent = "Comparing...";
+  errorEl.classList.add("hidden");
+
+  try {
+    if (mode === "paste") {
+      sourceCode = document.getElementById("codeSource").value;
+      targetCode = document.getElementById("codeTarget").value;
+      sourceLabel = "Source (pasted)";
+      targetLabel = "Target (pasted)";
+      if (!sourceCode && !targetCode) {
+        throw new Error("Please paste code into both text areas.");
+      }
+      language = "Plain Text";
+    } else if (mode === "url") {
+      var srcUrl = document.getElementById("codeSourceUrl").value.trim();
+      var tgtUrl = document.getElementById("codeTargetUrl").value.trim();
+      if (!srcUrl || !tgtUrl) {
+        throw new Error("Please enter both source and target URLs.");
+      }
+      var fetchResp = await fetch("/api/code-compare/fetch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sourceUrl: srcUrl, targetUrl: tgtUrl }),
+      });
+      var fetchText = await fetchResp.text();
+      var fetchData;
+      try { fetchData = JSON.parse(fetchText); } catch {
+        throw new Error("Server returned an unexpected response (status " + fetchResp.status + "): " + fetchText.substring(0, 100));
+      }
+      if (!fetchResp.ok) {
+        throw new Error(fetchData.error || "Failed to fetch URLs");
+      }
+      sourceCode = fetchData.sourceCode;
+      targetCode = fetchData.targetCode;
+      sourceLabel = srcUrl;
+      targetLabel = tgtUrl;
+      language = fetchData.language;
+    } else if (mode === "file") {
+      if (codeSourceFileContent === null || codeTargetFileContent === null) {
+        throw new Error("Please upload both source and target files.");
+      }
+      sourceCode = codeSourceFileContent;
+      targetCode = codeTargetFileContent;
+      sourceLabel = codeSourceFileName;
+      targetLabel = codeTargetFileName;
+      language = detectLanguageFromFilename(codeSourceFileName);
+    }
+
+    var response = await fetch("/api/code-compare", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        sourceCode: sourceCode,
+        targetCode: targetCode,
+        language: language,
+        sourceLabel: sourceLabel,
+        targetLabel: targetLabel,
+      }),
+    });
+
+    var respText = await response.text();
+    var result;
+    try { result = JSON.parse(respText); } catch {
+      throw new Error("Server returned an unexpected response. The files may be too large.");
+    }
+    if (!response.ok) {
+      throw new Error(result.error || "Failed to generate diff report");
+    }
+    window.open("/api/reports/" + result.reportId, "_blank");
+    loadHistory();
+  } catch (err) {
+    showError(err.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Compare";
+  }
+});
 
 // Load history on page init
 loadHistory();

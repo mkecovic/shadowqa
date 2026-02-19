@@ -1710,6 +1710,26 @@ footer {
   margin-top: 0.25rem;
 }
 
+/* --- Code Compare --- */
+.code-compare-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.25rem;
+}
+
+#tab-code .input-group textarea {
+  font-family: 'SF Mono', 'Fira Code', 'Fira Mono', Menlo, Consolas, monospace;
+  font-size: 0.82rem;
+  line-height: 1.6;
+  tab-size: 2;
+}
+
+.file-upload-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
 /* --- Fallback --- */
 @supports not (backdrop-filter: blur(16px)) {
   .hero-icon,
@@ -1747,6 +1767,10 @@ footer {
   }
 
   .form-row {
+    grid-template-columns: 1fr;
+  }
+
+  .code-compare-grid {
     grid-template-columns: 1fr;
   }
 

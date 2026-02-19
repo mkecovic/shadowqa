@@ -6,7 +6,7 @@ import { closeBrowser } from "../capture/index.js";
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-app.use(express.json());
+app.use(express.json({ limit: "10mb" }));
 app.use(express.static(path.resolve(process.cwd(), "src/web")));
 app.use(router);
 

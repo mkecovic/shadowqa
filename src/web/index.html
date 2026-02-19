@@ -56,6 +56,7 @@
         <button class="tab-btn active" data-tab="single">Single Compare</button>
         <button class="tab-btn" data-tab="bulk">Bulk Compare</button>
         <button class="tab-btn" data-tab="sitemap">Sitemap Crawl</button>
+        <button class="tab-btn" data-tab="code">Code Compare</button>
       </div>
 
       <!-- Single Compare Tab -->
@@ -266,6 +267,87 @@
             </div>
             <div id="sitemapPairsList" class="sitemap-pairs"></div>
             <button type="button" id="sitemapBatchBtn" class="btn-action">Start Batch</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Code Compare Tab -->
+      <div id="tab-code" class="tab-panel">
+        <div class="compare-form">
+          <div class="radio-group">
+            <span class="radio-group-label">Input Mode</span>
+            <label class="radio-label">
+              <input type="radio" name="codeMode" value="paste" checked>
+              Paste
+            </label>
+            <label class="radio-label">
+              <input type="radio" name="codeMode" value="url">
+              URL
+            </label>
+            <label class="radio-label">
+              <input type="radio" name="codeMode" value="file">
+              File Upload
+            </label>
+          </div>
+
+          <!-- Paste mode -->
+          <div id="codePasteMode">
+            <div class="code-compare-grid">
+              <div class="input-group">
+                <label for="codeSource">Source</label>
+                <textarea id="codeSource" rows="12" placeholder="Paste source code here..."></textarea>
+              </div>
+              <div class="input-group">
+                <label for="codeTarget">Target</label>
+                <textarea id="codeTarget" rows="12" placeholder="Paste target code here..."></textarea>
+              </div>
+            </div>
+          </div>
+
+          <!-- URL mode -->
+          <div id="codeUrlMode" class="hidden">
+            <div class="form-row">
+              <div class="input-group">
+                <label for="codeSourceUrl">Source URL</label>
+                <input type="url" id="codeSourceUrl" placeholder="https://example.com/file.js">
+              </div>
+              <div class="input-group">
+                <label for="codeTargetUrl">Target URL</label>
+                <input type="url" id="codeTargetUrl" placeholder="https://example.com/file-v2.js">
+              </div>
+            </div>
+          </div>
+
+          <!-- File upload mode -->
+          <div id="codeFileMode" class="hidden">
+            <div class="form-row">
+              <div class="input-group">
+                <label>Source File</label>
+                <div class="file-upload-wrapper">
+                  <label for="codeSourceFile" class="upload-btn">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                    Choose File
+                  </label>
+                  <input type="file" id="codeSourceFile" class="hidden">
+                  <span id="codeSourceFileName" class="csv-filename">No file chosen</span>
+                </div>
+              </div>
+              <div class="input-group">
+                <label>Target File</label>
+                <div class="file-upload-wrapper">
+                  <label for="codeTargetFile" class="upload-btn">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                    Choose File
+                  </label>
+                  <input type="file" id="codeTargetFile" class="hidden">
+                  <span id="codeTargetFileName" class="csv-filename">No file chosen</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="form-footer">
+            <button type="button" id="codeCompareBtn" class="btn-action">Compare</button>
           </div>
         </div>
       </div>
