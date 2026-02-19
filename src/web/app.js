@@ -246,15 +246,9 @@ function updateSteps(currentStep) {
   });
 }
 
-form.addEventListener("submit", async function (e) {
-  e.preventDefault();
+var lastCompareParams = null;
 
-  var sourceUrl = document.getElementById("sourceUrl").value.trim();
-  var targetUrl = document.getElementById("targetUrl").value.trim();
-  var viewport = getViewportFromSelect("viewport");
-
-  if (!sourceUrl || !targetUrl) return;
-
+async function runComparison(sourceUrl, targetUrl, viewport) {
   // Reset UI
   errorEl.classList.add("hidden");
   successCard.classList.add("hidden");
@@ -296,6 +290,19 @@ form.addEventListener("submit", async function (e) {
     submitBtn.disabled = false;
     submitBtn.textContent = "Compare";
   }
+}
+
+form.addEventListener("submit", async function (e) {
+  e.preventDefault();
+
+  var sourceUrl = document.getElementById("sourceUrl").value.trim();
+  var targetUrl = document.getElementById("targetUrl").value.trim();
+  var viewport = getViewportFromSelect("viewport");
+
+  if (!sourceUrl || !targetUrl) return;
+
+  lastCompareParams = { sourceUrl: sourceUrl, targetUrl: targetUrl, viewport: viewport };
+  await runComparison(sourceUrl, targetUrl, viewport);
 });
 
 async function animateRemainingSteps(currentStep) {
@@ -388,7 +395,11 @@ function showError(message) {
 }
 
 errorRetry.addEventListener("click", function () {
-  errorEl.classList.add("hidden");
+  if (lastCompareParams) {
+    runComparison(lastCompareParams.sourceUrl, lastCompareParams.targetUrl, lastCompareParams.viewport);
+  } else {
+    errorEl.classList.add("hidden");
+  }
 });
 
 // =====================
