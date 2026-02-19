@@ -132,28 +132,28 @@ export function buildHtmlReport(report: ComparisonReport): string {
       <button class="screenshot-tab" data-tab="target" role="tab" aria-selected="false" aria-controls="pane-target" id="tab-target" tabindex="-1">Target</button>
       <button class="screenshot-tab" data-tab="diff" role="tab" aria-selected="false" aria-controls="pane-diff" id="tab-diff" tabindex="-1">Diff</button>
       <button class="screenshot-tab" data-tab="sidebyside" role="tab" aria-selected="false" aria-controls="pane-sidebyside" id="tab-sidebyside" tabindex="-1">Side by Side</button>
-      <button class="download-btn" id="screenshotDownload" data-filename="annotated.png" data-src="data:image/png;base64,${report.annotatedScreenshot}">Download</button>
+      <button class="download-btn" id="screenshotDownload" data-filename="annotated.png" data-src="/report-assets/${report.id}-annotated.png">Download</button>
     </div>
     <div class="screenshot-pane active" data-pane="annotated" role="tabpanel" id="pane-annotated" aria-labelledby="tab-annotated">
-      <img src="data:image/png;base64,${report.annotatedScreenshot}" alt="Annotated target screenshot with finding locations">
+      <img src="/report-assets/${report.id}-annotated.png" alt="Annotated target screenshot with finding locations">
     </div>
     <div class="screenshot-pane" data-pane="source" role="tabpanel" id="pane-source" aria-labelledby="tab-source">
-      <img src="data:image/png;base64,${report.sourceScreenshot}" alt="Source page screenshot">
+      <img src="/report-assets/${report.id}-source.png" alt="Source page screenshot">
     </div>
     <div class="screenshot-pane" data-pane="target" role="tabpanel" id="pane-target" aria-labelledby="tab-target">
-      <img src="data:image/png;base64,${report.targetScreenshot}" alt="Target page screenshot">
+      <img src="/report-assets/${report.id}-target.png" alt="Target page screenshot">
     </div>
     <div class="screenshot-pane" data-pane="diff" role="tabpanel" id="pane-diff" aria-labelledby="tab-diff">
-      <img src="data:image/png;base64,${report.diffScreenshot}" alt="Visual diff">
+      <img src="/report-assets/${report.id}-diff.png" alt="Visual diff">
     </div>
     <div class="screenshot-pane screenshot-sidebyside" data-pane="sidebyside" role="tabpanel" id="pane-sidebyside" aria-labelledby="tab-sidebyside">
       <div class="sbs-panel" id="sbsLeft">
         <div class="sbs-label">Source</div>
-        <img src="data:image/png;base64,${report.sourceScreenshot}" alt="Source page screenshot">
+        <img src="/report-assets/${report.id}-source.png" alt="Source page screenshot">
       </div>
       <div class="sbs-panel" id="sbsRight">
         <div class="sbs-label">Target</div>
-        <img src="data:image/png;base64,${report.targetScreenshot}" alt="Target page screenshot">
+        <img src="/report-assets/${report.id}-target.png" alt="Target page screenshot">
       </div>
     </div>
   </section>

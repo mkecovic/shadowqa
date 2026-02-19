@@ -78,10 +78,6 @@ export async function processComparison(
       total: findings.length,
     },
     findings,
-    sourceScreenshot: sourceCapture.screenshot.toString("base64"),
-    targetScreenshot: targetCapture.screenshot.toString("base64"),
-    diffScreenshot: diffImage.toString("base64"),
-    annotatedScreenshot: annotatedScreenshot.toString("base64"),
   };
 
   const html = buildHtmlReport(report);
@@ -89,6 +85,12 @@ export async function processComparison(
   if (!fs.existsSync(reportsDir)) {
     fs.mkdirSync(reportsDir, { recursive: true });
   }
+
+  // Save screenshots as separate files (keeps HTML reports small)
+  fs.writeFileSync(path.join(reportsDir, `${reportId}-source.png`), sourceCapture.screenshot);
+  fs.writeFileSync(path.join(reportsDir, `${reportId}-target.png`), targetCapture.screenshot);
+  fs.writeFileSync(path.join(reportsDir, `${reportId}-diff.png`), diffImage);
+  fs.writeFileSync(path.join(reportsDir, `${reportId}-annotated.png`), annotatedScreenshot);
 
   fs.writeFileSync(path.join(reportsDir, `${reportId}.html`), html);
 

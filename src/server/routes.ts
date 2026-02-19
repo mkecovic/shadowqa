@@ -62,6 +62,42 @@ const activeJobs = new Map<
 const MAX_CONCURRENT_SINGLE_JOBS = 5;
 let activeSingleJobCount = 0;
 
+// --- Job file persistence helpers ---
+
+function jobFilePath(jobId: string): string {
+  return path.join(reportsDir, `${jobId}.job.json`);
+}
+
+function saveJobFile(jobId: string, state: { status: string; progress: number; error?: string }): void {
+  try {
+    fs.writeFileSync(jobFilePath(jobId), JSON.stringify(state));
+  } catch { /* non-fatal */ }
+}
+
+function deleteJobFile(jobId: string): void {
+  try {
+    const p = jobFilePath(jobId);
+    if (fs.existsSync(p)) fs.unlinkSync(p);
+  } catch { /* non-fatal */ }
+}
+
+// On startup: recover any .job.json files left from a previous server instance.
+// Jobs that were still running when the server died are marked as errored.
+try {
+  for (const f of fs.readdirSync(reportsDir).filter((f) => f.endsWith(".job.json"))) {
+    const jobId = f.replace(".job.json", "");
+    try {
+      const state = JSON.parse(fs.readFileSync(path.join(reportsDir, f), "utf-8"));
+      if (state.status !== "complete" && state.status !== "error") {
+        state.status = "error";
+        state.error = "Job interrupted — server was restarted";
+        saveJobFile(jobId, state);
+      }
+      activeJobs.set(jobId, state);
+    } catch { /* skip corrupted files */ }
+  }
+} catch { /* reportsDir may not exist yet */ }
+
 // Batch manager (singleton)
 const batchManager = new BatchManager(reportsDir);
 
@@ -94,7 +130,9 @@ router.post("/api/compare", async (req: Request, res: Response) => {
   }
 
   const jobId = crypto.randomUUID();
-  activeJobs.set(jobId, { status: "capturing", progress: 0 });
+  const initialState = { status: "capturing", progress: 0 };
+  activeJobs.set(jobId, initialState);
+  saveJobFile(jobId, initialState);
   activeSingleJobCount++;
 
   res.json({ jobId });
@@ -105,16 +143,23 @@ router.post("/api/compare", async (req: Request, res: Response) => {
     viewport,
     reportsDir,
     (status, progress) => {
-      activeJobs.set(jobId, { status, progress });
+      const state = { status, progress };
+      activeJobs.set(jobId, state);
+      saveJobFile(jobId, state);
     },
     jobId
-  ).catch((err) => {
+  ).then(() => {
+    // Success — .meta.json now exists on disk; job file is no longer needed
+    deleteJobFile(jobId);
+  }).catch((err) => {
     console.error(`Job ${jobId} failed:`, err);
-    activeJobs.set(jobId, {
+    const errorState = {
       status: "error",
       progress: 0,
       error: err instanceof Error ? err.message : String(err),
-    });
+    };
+    activeJobs.set(jobId, errorState);
+    saveJobFile(jobId, errorState);
   }).finally(() => {
     activeSingleJobCount--;
   });
@@ -122,12 +167,27 @@ router.post("/api/compare", async (req: Request, res: Response) => {
 
 router.get("/api/status/:jobId", (req: Request, res: Response) => {
   const jobId = req.params.jobId as string;
+
+  // 1. In-memory (job is actively running or recently finished)
   const job = activeJobs.get(jobId);
-  if (!job) {
-    res.status(404).json({ error: "Job not found" });
+  if (job) { res.json(job); return; }
+
+  // 2. Report meta exists — job completed successfully in a previous session
+  if (fs.existsSync(path.join(reportsDir, `${jobId}.meta.json`))) {
+    res.json({ status: "complete", progress: 100 });
     return;
   }
-  res.json(job);
+
+  // 3. Job file exists — job errored or was interrupted in a previous session
+  const jfp = jobFilePath(jobId);
+  if (fs.existsSync(jfp)) {
+    try {
+      res.json(JSON.parse(fs.readFileSync(jfp, "utf-8")));
+      return;
+    } catch { /* fall through to 404 */ }
+  }
+
+  res.status(404).json({ error: "Job not found" });
 });
 
 // --- Report endpoints ---
@@ -157,6 +217,19 @@ router.get("/api/reports", (req: Request, res: Response) => {
   }
 });
 
+const SCREENSHOT_TYPES = ["source", "target", "diff", "annotated"] as const;
+
+function deleteReportFiles(id: string): void {
+  const htmlPath = path.join(reportsDir, `${id}.html`);
+  const metaPath = path.join(reportsDir, `${id}.meta.json`);
+  if (fs.existsSync(htmlPath)) fs.unlinkSync(htmlPath);
+  if (fs.existsSync(metaPath)) fs.unlinkSync(metaPath);
+  for (const type of SCREENSHOT_TYPES) {
+    const pngPath = path.join(reportsDir, `${id}-${type}.png`);
+    if (fs.existsSync(pngPath)) fs.unlinkSync(pngPath);
+  }
+}
+
 router.delete("/api/reports/:id", (req: Request, res: Response) => {
   const id = req.params.id as string;
   const htmlPath = path.join(reportsDir, `${id}.html`);
@@ -165,8 +238,7 @@ router.delete("/api/reports/:id", (req: Request, res: Response) => {
     res.status(404).json({ error: "Report not found" });
     return;
   }
-  if (fs.existsSync(htmlPath)) fs.unlinkSync(htmlPath);
-  if (fs.existsSync(metaPath)) fs.unlinkSync(metaPath);
+  deleteReportFiles(id);
   res.json({ ok: true });
 });
 
@@ -179,10 +251,11 @@ router.delete("/api/reports", (req: Request, res: Response) => {
     if (ids && ids.length > 0) {
       // Delete specific reports
       for (const id of ids) {
-        const htmlPath = path.join(reportsDir, `${id}.html`);
         const metaPath = path.join(reportsDir, `${id}.meta.json`);
-        if (fs.existsSync(htmlPath)) { fs.unlinkSync(htmlPath); deleted++; }
-        if (fs.existsSync(metaPath)) fs.unlinkSync(metaPath);
+        if (fs.existsSync(metaPath)) {
+          deleteReportFiles(id);
+          deleted++;
+        }
       }
     } else {
       // Delete all reports (not batch files)
@@ -190,9 +263,7 @@ router.delete("/api/reports", (req: Request, res: Response) => {
       for (const f of files) {
         if (f.endsWith(".meta.json") && !f.endsWith(".batch.json")) {
           const id = f.replace(".meta.json", "");
-          const htmlPath = path.join(reportsDir, `${id}.html`);
-          if (fs.existsSync(htmlPath)) fs.unlinkSync(htmlPath);
-          fs.unlinkSync(path.join(reportsDir, f));
+          deleteReportFiles(id);
           deleted++;
         }
       }

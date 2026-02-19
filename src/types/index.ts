@@ -104,10 +104,8 @@ export interface ComparisonReport {
     total: number;
   };
   findings: Finding[];
-  sourceScreenshot: string; // base64
-  targetScreenshot: string; // base64
-  diffScreenshot: string; // base64
-  annotatedScreenshot: string; // base64
+  // Screenshots are saved as separate files: ${id}-{source,target,diff,annotated}.png
+  // and served at /report-assets/${id}-{type}.png
 }
 
 export interface CompareRequest {
