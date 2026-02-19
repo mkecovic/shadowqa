@@ -278,7 +278,37 @@ router.get("/api/reports/:id", (req: Request, res: Response) => {
   const id = req.params.id as string;
   const reportPath = path.join(reportsDir, `${id}.html`);
   if (!fs.existsSync(reportPath)) {
-    res.status(404).json({ error: "Report not found" });
+    res.status(404).send(`<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Report not found — Shadow QA</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+    body { font-family: system-ui, -apple-system, sans-serif; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; background: #0f172a; color: #e2e8f0; }
+    .container { text-align: center; padding: 2rem; max-width: 400px; }
+    .icon { width: 56px; height: 56px; border-radius: 50%; background: rgba(239,68,68,0.15); display: flex; align-items: center; justify-content: center; margin: 0 auto 1.25rem; }
+    .icon svg { display: block; }
+    h1 { font-size: 1.4rem; font-weight: 600; margin: 0 0 0.5rem; }
+    p { color: #94a3b8; margin: 0 0 1.75rem; line-height: 1.6; }
+    a { display: inline-block; padding: 0.65rem 1.5rem; background: linear-gradient(135deg, #667eea, #764ba2); color: white; text-decoration: none; border-radius: 8px; font-size: 0.9rem; font-weight: 500; }
+    a:hover { opacity: 0.9; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="icon">
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/>
+      </svg>
+    </div>
+    <h1>Report not found</h1>
+    <p>This report may have been deleted or the link has expired.</p>
+    <a href="/">Back to Shadow QA</a>
+  </div>
+</body>
+</html>`);
     return;
   }
   res.sendFile(reportPath);
@@ -376,6 +406,28 @@ router.delete("/api/batches", (req: Request, res: Response) => {
   } catch {
     res.status(500).json({ error: "Failed to delete batches" });
   }
+});
+
+router.post("/api/batch/:id/retry", (req: Request, res: Response) => {
+  const id = req.params.id as string;
+  const meta = batchManager.getBatch(id);
+  if (!meta) {
+    res.status(404).json({ error: "Batch not found" });
+    return;
+  }
+
+  const failedPairs = meta.jobs
+    .filter((j) => j.status === "error")
+    .map((j) => ({ sourceUrl: j.sourceUrl, targetUrl: j.targetUrl }));
+
+  if (failedPairs.length === 0) {
+    res.status(400).json({ error: "No failed jobs to retry" });
+    return;
+  }
+
+  const newBatch = batchManager.createBatch(failedPairs, meta.viewport);
+  res.json({ batchId: newBatch.id });
+  batchManager.startBatch(newBatch.id);
 });
 
 router.get("/api/batch/:id/summary", (req: Request, res: Response) => {

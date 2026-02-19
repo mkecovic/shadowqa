@@ -563,7 +563,35 @@ function showBatchSuccess(batchId, batch) {
     batch.completedJobs + " of " + batch.totalJobs + " pages completed" +
     (batch.failedJobs > 0 ? " (" + batch.failedJobs + " failed)" : "");
   batchSummaryLink.href = "/api/batch/" + batchId + "/summary";
+
+  // Add/refresh retry button
+  var existingRetry = batchSuccessCard.querySelector(".btn-retry-failed");
+  if (existingRetry) existingRetry.remove();
+  if (batch.failedJobs > 0) {
+    var retryBtn = document.createElement("button");
+    retryBtn.className = "btn-secondary btn-retry-failed";
+    retryBtn.textContent = "Retry " + batch.failedJobs + " failed";
+    retryBtn.addEventListener("click", function () { retryBatch(batchId); });
+    batchSuccessCard.querySelector(".success-actions").appendChild(retryBtn);
+  }
+
   batchSuccessCard.classList.remove("hidden");
+}
+
+async function retryBatch(batchId) {
+  try {
+    var response = await fetch("/api/batch/" + batchId + "/retry", { method: "POST" });
+    if (!response.ok) {
+      var data = await response.json();
+      showError(data.error || "Failed to retry batch");
+      return;
+    }
+    var result = await response.json();
+    batchSuccessCard.classList.add("hidden");
+    await pollBatchProgress(result.batchId);
+  } catch (err) {
+    showError(err.message);
+  }
 }
 
 // =====================
@@ -996,6 +1024,20 @@ function renderBatchItem(b) {
   });
 
   item.appendChild(link);
+
+  if (b.failedJobs > 0 && (b.status === "complete" || b.status === "error")) {
+    var retryBtn = document.createElement("button");
+    retryBtn.className = "history-retry";
+    retryBtn.title = "Retry " + b.failedJobs + " failed";
+    retryBtn.setAttribute("aria-label", "Retry failed jobs");
+    retryBtn.textContent = "Retry " + b.failedJobs + " failed";
+    retryBtn.addEventListener("click", function (e) {
+      e.stopPropagation();
+      retryBatch(b.id);
+    });
+    item.appendChild(retryBtn);
+  }
+
   item.appendChild(deleteBtn);
   return item;
 }

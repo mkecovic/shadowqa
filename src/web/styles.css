@@ -861,6 +861,27 @@ button[type="submit"]:disabled,
   color: inherit;
 }
 
+.history-retry {
+  padding: 0.3rem 0.65rem;
+  margin-right: 0.4rem;
+  background: none;
+  border: 1px solid var(--text-light);
+  border-radius: 6px;
+  color: var(--text-light);
+  font-size: 0.75rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.history-retry:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: rgba(102, 126, 234, 0.08);
+}
+
 .history-delete {
   padding: 0.4rem 0.65rem;
   margin-right: 0.65rem;
